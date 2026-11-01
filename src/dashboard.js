@@ -254,20 +254,24 @@ function overview(c, s, state, x, y, w, h) {
   const bw = bigText(c, x, y + 3, total, THEME.bone, bg);
   const sx = x + bw + 4;
   const side = [];
-  if (s.officialCost != null) side.push([s.agent === "codex" ? "CODEX TOTAL" : "CLAUDE CODE'S OWN TOTAL", usd(s.officialCost)]);
+  // [label, value, warning, short label]: the short one is used when the long one does not fit
+  if (s.officialCost != null) side.push([s.agent === "codex" ? "CODEX TOTAL" : "CLAUDE CODE'S OWN TOTAL", usd(s.officialCost), false, "OWN TOTAL"]);
   const [ref, refPrefix] = s.agent === "codex" ? ["GPT-6.1 Sol", "gpt-6.1-sol"] : ["Sonnet 5.5", "claude-sonnet"];
   const cheaper = s.whatIf?.find((v) => v.label === ref);
-  if (cheaper && s.mainModel && !s.mainModel.startsWith(refPrefix)) side.push([`SAME TOKENS ON ${ref.toUpperCase()}`, usd(cheaper.cost)]);
+  if (cheaper && s.mainModel && !s.mainModel.startsWith(refPrefix)) side.push([`SAME TOKENS ON ${ref.toUpperCase()}`, usd(cheaper.cost), false, `ON ${ref.toUpperCase()}`]);
   side.push(["TASKS", String(s.tasks.filter((t) => !t.meta || t.cost > 0).length)]);
   if (s.unknownModels?.length) side[side.length - 1] = ["! UNKNOWN PRICE", s.unknownModels.join(", "), true];
   const sideW = Math.max(...side.slice(0, 3).map(([k, v]) => textWidth(k) + 2 + textWidth(v)));
   if (sx + sideW > x + w - rankW - 2) rankW = 0; // the amounts matter more than the rank
   if (rankW) bigText(c, x + w - rankW, y + 3, rank, THEME.ghost, bg);
   const sideEnd = x + w - (rankW ? rankW + 2 : 0);
-  side.slice(0, 3).forEach(([k, v, warn], i) => {
+  side.slice(0, 3).forEach(([long, v, warn, short], i) => {
     if (sx + 20 > sideEnd) return;
-    const kx = c.put(sx, y + 3 + i, k, { fg: warn ? THEME.red2 : THEME.mute, bg, bold: !!warn }, sideEnd - sx);
-    c.put(kx + 2, y + 3 + i, v, { fg: warn ? THEME.red2 : THEME.gold2, bg, bold: true }, sideEnd - kx - 2);
+    // the amount is never cut: the label gets what is left
+    const room = sideEnd - sx - textWidth(v) - 2;
+    const k = textWidth(long) <= room || !short ? long : short;
+    const kx = c.put(sx, y + 3 + i, fitWidth(k, Math.max(1, room)), { fg: warn ? THEME.red2 : THEME.mute, bg, bold: !!warn });
+    c.put(kx + 2, y + 3 + i, v, { fg: warn ? THEME.red2 : THEME.gold2, bg, bold: true }, warn ? sideEnd - kx - 2 : Infinity);
   });
 
   // where the money went

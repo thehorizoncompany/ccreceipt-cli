@@ -115,6 +115,18 @@ test("the tasks, tools and models tabs", () => {
   assert.match(models, /Fable 5\.1 .*\$65\.00/);
 });
 
+test("the figures next to the total are never cut: short labels when the panel is narrow", () => {
+  const i = indexOf("Cost checks");
+  for (const w of [100, 108, 120, 160]) {
+    const rows = screen(state({ selected: i }), w, 30);
+    assert.ok(rows.every((r) => textWidth(r) === w), `${w}: every row at the terminal width`);
+    const text = rows.slice(6, 9).join("\n");
+    assert.match(text, /\$26\.00/, `${w}: own total in full`);
+    assert.match(text, /\$13\.00/, `${w}: the Sonnet price in full`);
+  }
+  assert.match(screen(state({ selected: i }), 108, 30).slice(6, 9).join("\n"), /ON SONNET 5\.5 +\$13\.00/);
+});
+
 test("an unknown model price is flagged in red text on the overview", () => {
   const text = screen(state({ selected: indexOf("Cost checks") })).join("\n");
   assert.match(text, /! UNKNOWN PRICE +claude-nova-preview/);
