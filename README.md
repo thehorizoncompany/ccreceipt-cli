@@ -61,7 +61,7 @@ Three numbers you cannot get elsewhere:
 ```
 ccreceipt                 receipt for the most recent session (opens the HTML report)
 ccreceipt <id-or-path>    a specific session: id, id prefix, or path to the .jsonl
-ccreceipt --list          the last 20 sessions with their cost
+ccreceipt --list          the 20 most recently active sessions with their cost
 ccreceipt --all           totals across every session on this machine, and your most expensive tasks ever
 
 --out <file.html>   where to write the report (default: a temp file)

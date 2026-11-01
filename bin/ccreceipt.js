@@ -30,7 +30,7 @@ if (flag("--help") || flag("-h")) {
 Usage:
   ccreceipt                 receipt for the most recent session (opens an HTML report)
   ccreceipt <id-or-path>    receipt for that session (session id, prefix, or .jsonl path)
-  ccreceipt --list          the last 20 sessions with their cost
+  ccreceipt --list          the 20 most recently active sessions with their cost
   ccreceipt --all           totals across every session on this machine
 
 Options:
@@ -110,9 +110,12 @@ if (flag("--list") || flag("--all")) {
     for (const t of s.tasks) if (!t.meta) tasks.push({ ...t, session: s });
   }
   if (flag("--list")) {
-    console.log(`\n  ${pad("cost", 8)}  ${pad("dur", 5)}  ${"date".padEnd(10)}  ${"project".padEnd(18)}  title / id\n`);
+    // most recently active first: the date shown is the last API call, and rows are sorted by it
+    const lastActive = (s) => s.end || s.start || "";
+    rows.sort((a, b) => lastActive(b).localeCompare(lastActive(a)));
+    console.log(`\n  ${pad("cost", 8)}  ${pad("dur", 5)}  ${"last active".padEnd(11)}  ${"project".padEnd(18)}  title / id\n`);
     for (const s of rows.slice(0, limit))
-      console.log(`  ${pad(usd(s.cost), 8)}  ${pad(dur(s.durationMs), 5)}  ${(s.start || "").slice(0, 10).padEnd(10)}  ${trunc(projectName(s.cwd), 18)}  ${trunc(s.title, 44)}  ${s.id.slice(0, 8)}`);
+      console.log(`  ${pad(usd(s.cost), 8)}  ${pad(dur(s.durationMs), 5)}  ${lastActive(s).slice(0, 10).padEnd(11)}  ${trunc(projectName(s.cwd), 18)}  ${trunc(s.title, 44)}  ${s.id.slice(0, 8)}`);
     console.log(`\n  ${rows.length} sessions, ${usd(total)} in total. Run: ccreceipt <id>\n`);
   } else {
     console.log(`\n  ${rows.length} sessions · ${usd(total)} total\n`);
