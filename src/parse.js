@@ -1,10 +1,12 @@
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, openSync, readSync, closeSync } from "node:fs";
+import { StringDecoder } from "node:string_decoder";
 import { basename, join, dirname, extname } from "node:path";
 import { costOfUsage, costParts, priceFor, WHATIF } from "./pricing.js";
 
 const SYS_RE = /<system-reminder>[\s\S]*?<\/system-reminder>/g;
 const CMD_RE = /<(command-name|command-message|command-args|local-command-stdout|local-command-stderr)>[\s\S]*?<\/\1>/g;
 const IMAGE_TOKENS = 1500;
+const REPLY_KEEP = 400; // characters of each assistant reply kept for the HTML replay
 const DELEGATED_RE = /^(Task|Background) \(from the session that started this one\)/;
 
 export function estimateTokens(content) {
@@ -52,17 +54,40 @@ function toolExt(input) {
   return typeof p === "string" ? extname(p) : "";
 }
 
-function readLines(file) {
-  const out = [];
-  for (const line of readFileSync(file, "utf8").split("\n")) {
-    if (!line) continue;
+// Yields one parsed record per line, reading the file 1 MB at a time: memory stays flat on huge transcripts.
+// Synchronous on purpose (works the same under Node and Bun, keeps parseSession synchronous).
+const CHUNK = 1 << 20;
+function* readLines(file) {
+  const fd = openSync(file, "r");
+  const buf = Buffer.allocUnsafe(CHUNK);
+  const decoder = new StringDecoder("utf8"); // never splits a multi-byte character across chunks
+  let rest = "";
+  const parse = (line) => {
     try {
-      out.push(JSON.parse(line));
+      return JSON.parse(line);
     } catch {
-      /* partial line */
+      return undefined; // partial or corrupt line
     }
+  };
+  try {
+    let n;
+    while ((n = readSync(fd, buf, 0, CHUNK, null)) > 0) {
+      const lines = (rest + decoder.write(buf.subarray(0, n))).split("\n");
+      rest = lines.pop();
+      for (const line of lines) {
+        if (!line) continue;
+        const d = parse(line);
+        if (d !== undefined) yield d;
+      }
+    }
+    rest += decoder.end();
+    if (rest) {
+      const d = parse(rest);
+      if (d !== undefined) yield d;
+    }
+  } finally {
+    closeSync(fd);
   }
-  return out;
 }
 
 /**
@@ -236,7 +261,7 @@ export function parseSession(file, opts = {}) {
       const owner = call || s.calls.find((c) => c.id === m.id);
       for (const b of content) {
         if (!b) continue;
-        if (b.type === "text" && owner && !opts.light) owner.text += (owner.text ? "\n" : "") + b.text;
+        if (b.type === "text" && owner && !opts.light && owner.text.length < REPLY_KEEP) owner.text = (owner.text + (owner.text ? "\n" : "") + b.text).slice(0, REPLY_KEEP);
         if (b.type === "tool_use") {
           const p = priceFor(model || lastModel, opts.pricing);
           const tc = {
