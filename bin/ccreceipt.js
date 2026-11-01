@@ -8,6 +8,7 @@ import { parseSession } from "../src/parse.js";
 import { renderHtml } from "../src/html.js";
 import { redactSession, projectLabeler } from "../src/redact.js";
 import { projectName } from "../src/project.js";
+import { parseDateBound, inRange, fmtDay } from "../src/dates.js";
 
 // Everything runs inside main() and returns instead of calling process.exit(0):
 // under Node, stdout to a pipe is asynchronous and process.exit() would cut the output.
@@ -18,7 +19,7 @@ function main() {
     const i = argv.indexOf(n);
     return i >= 0 ? argv[i + 1] : null;
   };
-  const positional = argv.filter((a, i) => !a.startsWith("-") && !["--out", "--pricing", "--limit", "--dir"].includes(argv[i - 1]));
+  const positional = argv.filter((a, i) => !a.startsWith("-") && !["--out", "--pricing", "--limit", "--dir", "--since", "--until"].includes(argv[i - 1]));
 
   if (flag("--version") || flag("-v")) {
     // readFileSync rather than a JSON import: import attributes are not stable on Node 18.
@@ -30,24 +31,26 @@ function main() {
   if (flag("--help") || flag("-h")) {
     console.log(`ccreceipt – the itemized receipt for a Claude Code session
 
-  Usage:
-    ccreceipt                 receipt for the most recent session (opens an HTML report)
-    ccreceipt <id-or-path>    receipt for that session (session id, prefix, or .jsonl path)
-    ccreceipt --list          the 20 most recently active sessions with their cost
-    ccreceipt --all           totals across every session on this machine
+Usage:
+  ccreceipt                 receipt for the most recent session (opens an HTML report)
+  ccreceipt <id-or-path>    receipt for that session (session id, prefix, or .jsonl path)
+  ccreceipt --list          the 20 most recently active sessions with their cost
+  ccreceipt --all           totals across every session on this machine
 
-  Options:
-    --out <file.html>   where to write the report (default: a temp file)
-    --json              print the receipt as JSON instead of HTML
-    --no-open           do not open the report in the browser
-    --limit <n>         rows for --list / --all (default 20)
-    --dir <path>        sessions directory (default ~/.claude/projects)
-    --pricing <file>    JSON overrides: {"claude-opus-5-5": {"in":4,"out":20,"cr":0.2}} (USD per MTok)
-    --redact            hide prompts, replies, titles, paths, project and branch names (to share a receipt)
-    -v, --version       print the version
-    -h, --help          print this help
+Options:
+  --out <file.html>   where to write the report (default: a temp file)
+  --json              print the receipt as JSON instead of HTML
+  --no-open           do not open the report in the browser
+  --limit <n>         rows for --list / --all (default 20)
+  --dir <path>        sessions directory (default ~/.claude/projects)
+  --pricing <file>    JSON overrides: {"claude-opus-5-5": {"in":4,"out":20,"cr":0.2}} (USD per MTok)
+  --redact            hide prompts, replies, titles, paths, project and branch names (to share a receipt)
+  --since <date>      with --list / --all: sessions started on or after this day (YYYY-MM-DD, or 7d for the last 7 days)
+  --until <date>      with --list / --all: sessions started on or before this day (YYYY-MM-DD, or 30d)
+  -v, --version       print the version
+  -h, --help          print this help
 
-  Everything runs locally. No network, no telemetry.`);
+Everything runs locally. No network, no telemetry.`);
     return;
   }
 
@@ -55,6 +58,16 @@ function main() {
   const pricing = opt("--pricing") ? JSON.parse(readFileSync(opt("--pricing"), "utf8")) : null;
   const limit = +(opt("--limit") || 20);
   const redact = flag("--redact");
+  let since = null;
+  let until = null;
+  try {
+    if (opt("--since")) since = parseDateBound(opt("--since"), "since");
+    if (opt("--until")) until = parseDateBound(opt("--until"), "until");
+  } catch (e) {
+    console.error(e.message);
+    process.exit(1);
+  }
+  const range = since != null || until != null ? ` (${[since != null && "since " + fmtDay(since), until != null && "until " + fmtDay(until)].filter(Boolean).join(" ")})` : "";
   const label = projectLabeler();
 
   function allSessionFiles() {
@@ -106,6 +119,7 @@ function main() {
       } catch {
         continue;
       }
+      if (!inRange(s, since, until)) continue;
       if (redact) redactSession(s, label(projectName(s.cwd)));
       total += s.cost;
       byProject[projectName(s.cwd)] = (byProject[projectName(s.cwd)] || 0) + s.cost;
@@ -119,9 +133,9 @@ function main() {
       console.log(`\n  ${pad("cost", 8)}  ${pad("dur", 5)}  ${"last active".padEnd(11)}  ${"project".padEnd(18)}  title / id\n`);
       for (const s of rows.slice(0, limit))
         console.log(`  ${pad(usd(s.cost), 8)}  ${pad(dur(s.durationMs), 5)}  ${lastActive(s).slice(0, 10).padEnd(11)}  ${trunc(projectName(s.cwd), 18)}  ${trunc(s.title, 44)}  ${s.id.slice(0, 8)}`);
-      console.log(`\n  ${rows.length} sessions, ${usd(total)} in total. Run: ccreceipt <id>\n`);
+      console.log(`\n  ${rows.length} session${rows.length === 1 ? "" : "s"}${range}, ${usd(total)} in total. Run: ccreceipt <id>\n`);
     } else {
-      console.log(`\n  ${rows.length} sessions · ${usd(total)} total\n`);
+      console.log(`\n  ${rows.length} session${rows.length === 1 ? "" : "s"}${range} · ${usd(total)} total\n`);
       console.log("  By project");
       for (const [p, c] of Object.entries(byProject).sort((a, b) => b[1] - a[1]).slice(0, limit)) console.log(`  ${pad(usd(c), 8)}  ${p}`);
       console.log("\n  Most expensive tasks ever");
