@@ -32,7 +32,7 @@ function main() {
   }
 
   if (flag("--help") || flag("-h")) {
-    console.log(`ccreceipt – the itemized receipt for a Claude Code session
+    console.log(`ccreceipt – the itemized receipt for a Claude Code or Codex session
 
 Usage:
   ccreceipt                 receipt for the most recent session (opens an HTML report)
