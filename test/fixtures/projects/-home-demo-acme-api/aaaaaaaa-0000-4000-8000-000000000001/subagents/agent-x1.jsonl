@@ -1,0 +1,2 @@
+{"type":"user","cwd":"/home/demo/acme-api","gitBranch":"feature/receipts","version":"3.0.0","timestamp":"2026-10-20T09:04:00.000Z","isSidechain":true,"message":{"role":"user","content":"Find the test setup"}}
+{"type":"assistant","cwd":"/home/demo/acme-api","gitBranch":"feature/receipts","version":"3.0.0","timestamp":"2026-10-20T09:04:15.000Z","isSidechain":true,"message":{"id":"msg_s1","role":"assistant","model":"claude-sonnet-5-5","usage":{"input_tokens":100,"cache_read_input_tokens":0,"output_tokens":200},"content":[{"type":"text","text":"Found it."}]}}

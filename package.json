@@ -17,6 +17,10 @@
   "engines": {
     "node": ">=18"
   },
+  "scripts": {
+    "test": "node --test",
+    "fixtures": "node scripts/build-fixtures.mjs"
+  },
   "keywords": [
     "claude-code",
     "claude",
