@@ -1,0 +1,58 @@
+name: Bug report
+description: The receipt is wrong, the CLI crashes, or something does not work as documented.
+title: "fix: "
+labels: ["type: fix"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: Include the command you ran and the output. Run it with `--redact` if the output contains private prompts.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: ccreceipt version
+      description: Output of `ccreceipt --version`.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      options:
+        - Node 18
+        - Node 20
+        - Node 22
+        - Node 24
+        - Bun
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - macOS
+        - Linux
+        - Windows
+    validations:
+      required: true
+  - type: textarea
+    id: totals
+    attributes:
+      label: Totals, if the cost looks wrong
+      description: The ccreceipt total and the total Claude Code shows for the same session (`/cost` or the session's cost-state).
+  - type: markdown
+    attributes:
+      value: |
+        Please do not attach session `.jsonl` files: they contain your prompts and code.

@@ -1,0 +1,84 @@
+name: Feature
+description: One feature or unit of work. One issue, one branch, one pull request.
+title: "feat: "
+labels: ["type: feat"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One issue per feature. Change the title prefix to match the type (`feat:`, `fix:`, `chore:`, `refactor:`, `docs:`, `test:`, `ci:`, `perf:`). Maintainers set the priority label and the milestone.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: One or two sentences. What does the user get?
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What happens today, and why it is a problem.
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Flags, files, behavior. Enough for someone else to build it.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Checkable statements. The pull request is done when all are checked.
+      value: |
+        - [ ] 
+        - [ ] 
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0 – blocks the release
+        - P1 – high
+        - P2 – medium
+        - P3 – low
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Target version
+      placeholder: v0.2.0
+    validations:
+      required: true
+  - type: dropdown
+    id: type
+    attributes:
+      label: Type
+      options:
+        - feat
+        - fix
+        - chore
+        - refactor
+        - docs
+        - test
+        - ci
+        - perf
+    validations:
+      required: true
+  - type: input
+    id: branch
+    attributes:
+      label: Branch
+      description: "<type>/<issue number>-<short-name>, created from the version branch."
+      placeholder: "`feat/14-short-name` from `release/v0.2.0`"
+  - type: textarea
+    id: out-of-scope
+    attributes:
+      label: Out of scope
+      description: What this issue deliberately does not cover.
