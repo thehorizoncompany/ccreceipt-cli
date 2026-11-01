@@ -1,10 +1,16 @@
 # ccreceipt
 
+[![npm](https://img.shields.io/npm/v/ccreceipt)](https://www.npmjs.com/package/ccreceipt)
+[![test](https://github.com/thehorizoncompany/ccreceipt-cli/actions/workflows/test.yml/badge.svg)](https://github.com/thehorizoncompany/ccreceipt-cli/actions/workflows/test.yml)
+[![license](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+
 **The itemized receipt for your Claude Code sessions.** What each task cost, which tool result you paid for 587 times, and what the same tokens would cost on another model. Local, zero dependencies, nothing leaves your machine.
 
 ```
-npx ccreceipt   # or: bunx ccreceipt
+npx ccreceipt
 ```
+
+Works the same with `bunx ccreceipt`, `pnpm dlx ccreceipt` or `yarn dlx ccreceipt`. Node 18+ or Bun, nothing to configure.
 
 ```
   ──────────────────────────────────────────────────────────────
@@ -32,6 +38,12 @@ npx ccreceipt   # or: bunx ccreceipt
 
 It then opens a single-file HTML report with the per-task receipt, the most expensive tool results, a per-tool table, the "same tokens, other model" table, and a scrubber to replay the session call by call with the running total.
 
+![The HTML report of a $534 Claude Code session, made with --redact: total, what the money bought by token type, and the cost of each task](docs/receipt.png)
+
+## Sharing a receipt
+
+`ccreceipt --redact` removes your prompts, Claude's replies, the session title, file paths, project and branch names from the terminal receipt, the HTML report and `--json`. Every number stays the same. The screenshot above was made that way.
+
 ## Why
 
 `ccusage` tells you what you spent per day. `claude-replay` shows you what happened. Neither tells you **where** the money went inside a session: which prompt, which tool call, which 40 KB file you `cat`-ed in minute 3 and then paid to re-read on every one of the next 500 API calls. The receipt does.
@@ -57,6 +69,10 @@ ccreceipt --all           totals across every session on this machine, and your 
 --dir <path>        sessions directory (default ~/.claude/projects)
 --pricing <file>    JSON price overrides, USD per million tokens:
                     {"claude-opus-5-5": {"in": 4, "out": 20, "cr": 0.2}}
+--redact            hide prompts, replies, titles, paths, project and branch names,
+                    so the receipt can be shared; every number stays the same
+-v, --version       print the version
+-h, --help          print the help
 ```
 
 Requires Node 18+. Reads `~/.claude/projects/*/<session>.jsonl` and the `<session>/subagents/` transcripts next to it. No network, no telemetry, no account.
