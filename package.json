@@ -1,7 +1,7 @@
 {
   "name": "ccreceipt-cli",
-  "version": "0.2.0",
-  "description": "The itemized receipt for your Claude Code sessions: what each task cost, which tool result you paid for 80 times, and what the same session would cost on another model. Local, zero dependencies.",
+  "version": "0.2.1",
+  "description": "The itemized receipt for your Claude Code and OpenAI Codex CLI sessions: what each task cost, which tool result you paid for 80 times, and what the same session would cost on another model. Local, zero dependencies.",
   "type": "module",
   "bin": {
     "ccreceipt": "bin/ccreceipt.js",
@@ -26,6 +26,8 @@
     "claude-code",
     "claude",
     "anthropic",
+    "codex",
+    "openai",
     "tokens",
     "cost",
     "usage",

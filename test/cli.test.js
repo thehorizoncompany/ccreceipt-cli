@@ -23,6 +23,7 @@ test("--version and -v print the package version", () => {
 test("--help lists every flag", () => {
   const r = run("--help");
   assert.equal(r.status, 0);
+  assert.match(r.stdout, /^ccreceipt – the itemized receipt for a Claude Code or Codex session\n/);
   assert.match(r.stdout, /\nUsage:\n  ccreceipt  /); // layout: no extra indentation
   assert.match(r.stdout, /\nOptions:\n  --out /);
   for (const f of ["--list", "--all", "--out", "--json", "--no-open", "--limit", "--dir", "--pricing", "--redact", "--since", "--until", "--svg", "--agent", "--version", "--help"]) assert.ok(r.stdout.includes(f), f);
