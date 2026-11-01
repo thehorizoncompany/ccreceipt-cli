@@ -28,6 +28,22 @@ test("the SVG is 1200 px wide, with one text row per receipt row", () => {
   assert.match(svg, /npx ccreceipt-cli/);
 });
 
+test("the session card draws one bar per cost line, aligned and proportional; the terminal shows none", () => {
+  const s = parseSession(RULES);
+  const rows = receiptRows(s);
+  const bars = rows.filter((r) => r.bar != null);
+  assert.equal(bars.length, 4);
+  assert.equal(bars.reduce((n, r) => n + r.bar, 0).toFixed(6), "1.000000", "the four shares add up to the cost");
+  const svg = receiptSvg(rows);
+  const tracks = [...svg.matchAll(/<rect x="([\d.]+)" y="[\d.]+" width="([\d.]+)" height="\d+" fill="#132a33"\/>/g)];
+  assert.equal(tracks.length, 4);
+  assert.equal(new Set(tracks.map((m) => m[1])).size, 1, "every bar starts at the same column");
+  const fills = [...svg.matchAll(/<rect x="[\d.]+" y="[\d.]+" width="([\d.]+)" height="\d+" fill="#d4a556"\/>/g)].map((m) => +m[1]);
+  const widest = bars.reduce((best, r, i) => (r.bar > bars[best].bar ? i : best), 0);
+  assert.equal(Math.max(...fills), Math.round(+tracks[0][2] * bars[widest].bar));
+  assert.doesNotMatch(receiptText(rows).join("\n"), /█|▓|░/);
+});
+
 test("the SVG escapes XML special characters", () => {
   const s = parseSession(RULES);
   s.title = `<script>alert("x") & co</script>`;
