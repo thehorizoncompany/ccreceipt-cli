@@ -1,10 +1,16 @@
 # ccreceipt
 
+[![npm](https://img.shields.io/npm/v/ccreceipt)](https://www.npmjs.com/package/ccreceipt)
+[![test](https://github.com/thehorizoncompany/ccreceipt-cli/actions/workflows/test.yml/badge.svg)](https://github.com/thehorizoncompany/ccreceipt-cli/actions/workflows/test.yml)
+[![license](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+
 **The itemized receipt for your Claude Code sessions.** What each task cost, which tool result you paid for 587 times, and what the same tokens would cost on another model. Local, zero dependencies, nothing leaves your machine.
 
 ```
-npx ccreceipt   # or: bunx ccreceipt
+npx ccreceipt
 ```
+
+Works the same with `bunx ccreceipt`, `pnpm dlx ccreceipt` or `yarn dlx ccreceipt`. Node 18+ or Bun, nothing to configure.
 
 ```
   ──────────────────────────────────────────────────────────────
@@ -31,6 +37,12 @@ npx ccreceipt   # or: bunx ccreceipt
 ```
 
 It then opens a single-file HTML report with the per-task receipt, the most expensive tool results, a per-tool table, the "same tokens, other model" table, and a scrubber to replay the session call by call with the running total.
+
+![The HTML report of a $534 Claude Code session, made with --redact: total, what the money bought by token type, and the cost of each task](docs/receipt.png)
+
+## Sharing a receipt
+
+`ccreceipt --redact` removes your prompts, Claude's replies, the session title, file paths, project and branch names from the terminal receipt, the HTML report and `--json`. Every number stays the same. The screenshot above was made that way.
 
 ## Why
 
