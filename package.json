@@ -3,10 +3,39 @@
   "version": "0.1.0",
   "description": "The itemized receipt for your Claude Code sessions: what each task cost, which tool result you paid for 80 times, and what the same session would cost on another model. Local, zero dependencies.",
   "type": "module",
-  "bin": { "ccreceipt": "bin/ccreceipt.js" },
-  "files": ["bin", "src", "README.md", "LICENSE", "NOTICE", "TRADEMARKS.md"],
-  "engines": { "node": ">=18" },
-  "keywords": ["claude-code", "claude", "tokens", "cost", "usage", "agent", "receipt", "cli"],
+  "bin": {
+    "ccreceipt": "bin/ccreceipt.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "TRADEMARKS.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "claude-code",
+    "claude",
+    "anthropic",
+    "tokens",
+    "cost",
+    "usage",
+    "agent",
+    "receipt",
+    "cli"
+  ],
+  "author": "Maël Colomé",
   "license": "Apache-2.0",
-  "repository": { "type": "git", "url": "https://github.com/REPLACE_ME/ccreceipt" }
+  "homepage": "https://github.com/thehorizoncompany/ccreceipt-cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thehorizoncompany/ccreceipt-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/thehorizoncompany/ccreceipt-cli/issues"
+  }
 }
