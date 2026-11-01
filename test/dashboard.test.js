@@ -80,9 +80,14 @@ test("the overview shows the list, the total, the breakdown and the priciest tas
   const rows = screen(state({ selected: i }));
   assert.ok(rows.every((r) => textWidth(r) === 120), "every row is exactly the terminal width");
   const text = rows.join("\n");
-  for (const s of ["CCRECEIPT", "v9.9.9", "4 SESSIONS", "SESSION_LIST", "OVERVIEW", "TASKS", "TOOLS", "MODELS", "COST_BREAKDOWN", "PRICIEST_TASKS", "Health endpoint", "ENTER", "HTML REPORT"]) assert.ok(text.includes(s), s);
+  for (const s of ["CCRECEIPT", "v9.9.9", "4 SESSIONS", "SESSION_LIST", "OVERVIEW", "TASKS", "TOOLS", "MODELS", "COST_BREAKDOWN", "PRICIEST_TASKS", "Health endpoint", "ENTER", "REPORT", "CARD"]) assert.ok(text.includes(s), s);
   assert.match(text, /▶ +\$0\.03/, "the selected row is marked");
   assert.match(text, /▀|▄|█/, "the total is drawn in the pixel font");
+});
+
+test("every key of the footer fits in 80 columns", () => {
+  const footer = screen(state(), 80, 24).at(-1);
+  for (const k of ["SELECT", "VIEW", "ENTER", "REPORT", "S", "CARD", "REDACT", "AGENT", "QUIT"]) assert.ok(footer.includes(k), k);
 });
 
 test("the tasks, tools and models tabs", () => {
@@ -144,6 +149,7 @@ const settle = (ms = 150) => new Promise((r) => setTimeout(r, ms));
 async function startTui(over = {}) {
   const term = fakeTerminal();
   const reports = [];
+  const cards = [];
   const listed = [];
   const exitListeners = process.listenerCount("exit");
   const done = runTui({
@@ -155,6 +161,7 @@ async function startTui(over = {}) {
     parseLight: (f) => parseSession(f, { light: true }),
     parseFull: (f) => parseSession(f),
     openReport: (s) => (reports.push(s), "/tmp/report.html"),
+    writeCard: (s, o) => (cards.push({ s, o }), { path: "/tmp/card.svg", redacted: true }),
     input: term.input,
     output: term.output,
     env: { COLORTERM: "truecolor" },
@@ -165,7 +172,7 @@ async function startTui(over = {}) {
     term.input.write(k);
     await settle();
   };
-  return { ...term, done, key, reports, listed, exitListeners };
+  return { ...term, done, key, reports, cards, listed, exitListeners };
 }
 
 test("the dashboard opens on the alternate screen and Q restores the terminal", async () => {
@@ -194,6 +201,22 @@ test("keys move the selection, switch tabs and open the report", async () => {
   assert.equal(t.reports[0].id, SESSIONS[1].id);
   assert.match(t.last(), /Report: \/tmp\/report\.html/);
   await t.key("\x03");
+  await t.done;
+});
+
+test("S writes the receipt card of the selected session and shows its path", async () => {
+  const t = await startTui();
+  await t.key("j");
+  await t.key("s");
+  assert.equal(t.cards.length, 1);
+  assert.equal(t.cards[0].s.id, SESSIONS[1].id);
+  assert.deepEqual(t.cards[0].o, { redacted: false });
+  assert.match(t.last(), /Card: \/tmp\/card\.svg \(redacted\)/);
+  await t.key("r");
+  await t.key("S");
+  assert.equal(t.cards[1].s.redacted, true, "with R on, the card gets the redacted session");
+  assert.deepEqual(t.cards[1].o, { redacted: true });
+  await t.key("q");
   await t.done;
 });
 

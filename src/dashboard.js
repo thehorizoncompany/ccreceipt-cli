@@ -143,6 +143,22 @@ function header(c, state, W) {
     right -= w + 1;
   }
 
+  // status message (report or card path) on the right of the breadcrumb row
+  let msgX = W - 1;
+  if (state.message) {
+    const max = Math.min(W - 30, 90);
+    const i = state.message.indexOf(": ");
+    const head = i > 0 ? state.message.slice(0, i + 2) : "";
+    let body = i > 0 ? state.message.slice(i + 2) : state.message;
+    // a path is cut from the left: the file name is the part worth reading
+    while (textWidth(head + body) > max && body.length > 1) body = body.slice(1);
+    if (head + body !== state.message && i > 0) body = "…" + body.slice(1);
+    const text = head + body;
+    msgX = W - 1 - textWidth(text);
+    c.put(msgX, 1, head, { fg: THEME.ok, bg: THEME.bg, bold: true });
+    c.put(msgX + textWidth(head), 1, body, { fg: THEME.bone, bg: THEME.bg });
+  }
+
   // breadcrumb
   const row = state.rows[state.selected];
   const parts = ["SESSIONS"];
@@ -151,7 +167,7 @@ function header(c, state, W) {
   parts.forEach((p, i) => {
     if (i) bx = c.put(bx, 1, " / ", { fg: THEME.line, bg: THEME.bg });
     const last = i === parts.length - 1;
-    bx = c.put(bx, 1, fitWidth(p, Math.max(4, W - bx - 2)), { fg: last ? THEME.bone : THEME.mute, bg: THEME.bg, bold: last });
+    bx = c.put(bx, 1, fitWidth(p, Math.max(4, msgX - bx - 2)), { fg: last ? THEME.bone : THEME.mute, bg: THEME.bg, bold: last });
   });
 }
 
@@ -161,19 +177,20 @@ function footer(c, state, W, H) {
   const keys = [
     ["↑↓", "SELECT"],
     ["TAB", "VIEW"],
-    ["ENTER", "HTML REPORT", true],
+    ["ENTER", "REPORT", true],
+    ["S", "CARD"],
     ["R", "REDACT"],
     ["A", "AGENT"],
     ["Q", "QUIT"],
   ];
+  const gap = W >= 100 ? 2 : 1; // every key fits in 80 columns
   let x = 1;
   for (const [k, text, primary] of keys) {
-    const need = textWidth(k) + textWidth(text) + 4;
+    const need = textWidth(k) + textWidth(text) + 3;
     if (x + need > W - 1) break;
     x = c.put(x, y, ` ${k} `, primary ? { fg: THEME.bone, bg: THEME.red, bold: true } : { fg: THEME.bone, bg: THEME.line, bold: true });
-    x = c.put(x + 1, y, text, { fg: THEME.mute, bg: THEME.bg }) + 2;
+    x = c.put(x + 1, y, text, { fg: THEME.mute, bg: THEME.bg }) + gap;
   }
-  if (state.message && x < W - 10) c.putRight(W - 1, y, fitWidth(state.message, W - x - 2), { fg: THEME.ok, bg: THEME.bg });
 }
 
 function sessionList(c, state, x, y, w, h) {

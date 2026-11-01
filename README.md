@@ -49,9 +49,12 @@ It then opens a single-file HTML report with the per-task receipt, the most expe
 ```
 ↑ ↓  j k        select a session            Tab  ← →   overview, tasks, tools, models
 PgUp PgDn       scroll the tasks or tools   Enter      write and open the HTML report
+S               write the receipt card (SVG) and preview it
 R               redact everything on screen A          claude, codex, all
 Q  Esc  Ctrl+C  quit
 ```
+
+S writes the same card as `--svg`, redacted unless `--no-redact`, to the `--svg` path or next to the HTML reports, and opens it with Quick Look on macOS (Preview does not open SVG) or the default app elsewhere. `--no-open` writes without opening.
 
 It takes the same options as `--list` (`--agent`, `--dir`, `--since`, `--until`, `--pricing`, `--redact`) and needs a terminal of at least 80 × 24. Colours are 24-bit where the terminal says it supports them (`COLORTERM=truecolor`, iTerm2, WezTerm, Ghostty, VS Code, Windows Terminal), 256 colours otherwise, none with `NO_COLOR`.
 
