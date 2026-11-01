@@ -112,7 +112,7 @@ Not a daily dashboard (use [ccusage](https://github.com/ccusage/ccusage)). Not a
 
 ## Roadmap
 
-The free CLI stays free and gets the file formats of other agents (Codex, Cursor) if people ask. A paid Mac app on top of it, **ccreceipt Pro**, is in pre-order: live meter in the menu bar while a session runs, diff two sessions, one receipt across all sessions with per-project budgets and alerts, export for expense reports. Details and pre-order on the product page.
+The free CLI stays free. It reads Claude Code and OpenAI Codex sessions; Cursor comes if people ask. A paid Mac app on top of it, **ccreceipt Pro**, is in pre-order: live meter in the menu bar while a session runs, diff two sessions, one receipt across all sessions with per-project budgets and alerts, export for expense reports. Details and pre-order on the product page.
 
 ## License
 
