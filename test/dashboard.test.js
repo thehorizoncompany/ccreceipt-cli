@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Canvas, charWidth, textWidth, fitWidth, to256, colorMode } from "../src/canvas.js";
 import { renderDashboard, VIEWS } from "../src/dashboard.js";
-import { runTui, parseKeys } from "../src/tui.js";
+import { runTui, parseKeys, opensDashboard } from "../src/tui.js";
 import { parseSession } from "../src/parse.js";
 import { redactSession } from "../src/redact.js";
 
@@ -287,6 +287,26 @@ test("a resize redraws at the new size", async () => {
   assert.match(t.last(), /TERMINAL TOO SMALL/);
   await t.key("q");
   await t.done;
+});
+
+test("a bare ccreceipt opens the dashboard only in a terminal; printing flags, ids and --no-tui keep the receipt", () => {
+  const tty = { stdinTTY: true, stdoutTTY: true };
+  const open = (argv, positional = [], term = tty) => opensDashboard({ argv, positional, ...term });
+  assert.equal(open([]), true);
+  assert.equal(open(["--agent", "codex", "--since", "7d", "--redact", "--no-open"]), true);
+  assert.equal(open([], [], { stdinTTY: true, stdoutTTY: false }), false, "piped output");
+  assert.equal(open([], [], { stdinTTY: false, stdoutTTY: true }), false, "piped input");
+  assert.equal(open(["3f2a"], ["3f2a"]), false);
+  for (const f of ["--json", "--svg", "--out", "--list", "--all", "--no-tui"]) assert.equal(open([f]), false, f);
+  assert.equal(open(["--tui", "--all"]), true);
+  assert.equal(open(["--tui"], [], { stdinTTY: false, stdoutTTY: false }), true, "--tui decides, then fails without a terminal");
+});
+
+test("without a terminal, a bare ccreceipt still prints the most recent receipt", () => {
+  const r = spawnSync(process.execPath, [BIN, "--dir", DIR, "--no-open"], { encoding: "utf8" });
+  assert.equal(r.status, 0);
+  assert.match(r.stdout, /RECEIPT ·/);
+  assert.match(r.stdout, /Report: /);
 });
 
 test("--tui without a terminal exits with an error", () => {

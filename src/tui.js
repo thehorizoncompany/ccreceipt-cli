@@ -65,6 +65,21 @@ export function parseKeys(data) {
 }
 
 const AGENTS = ["claude", "codex", "all"];
+const PRINTING = ["--json", "--svg", "--out", "--list", "--all"];
+
+/**
+ * Whether a run opens the dashboard: always with --tui; otherwise only for a bare `ccreceipt`
+ * (no session, no printing flag, no --no-tui) in an interactive terminal, so scripts and pipes
+ * keep the printed receipt.
+ * The terminal checks are read last and lazily (pass getters): under Bun, touching
+ * process.stdin can cut a large output piped to stdout when the process exits.
+ */
+export function opensDashboard(o) {
+  if (o.argv.includes("--tui")) return true;
+  if (o.argv.includes("--no-tui") || o.positional.length) return false;
+  if (PRINTING.some((f) => o.argv.includes(f))) return false;
+  return !!(o.stdoutTTY && o.stdinTTY);
+}
 
 /**
  * opts: { version, agent, redact, since, until, listFiles(agent) -> files, rootOf(agent) -> path,

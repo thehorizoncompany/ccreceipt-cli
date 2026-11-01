@@ -12,6 +12,8 @@ npx ccreceipt-cli
 
 Works the same with `bunx ccreceipt-cli`, `pnpm dlx ccreceipt-cli` or `yarn dlx ccreceipt-cli`. Node 18+ or Bun, nothing to configure.
 
+In a terminal it opens the [dashboard](#terminal-dashboard) of every session. `ccreceipt <id>`, or `ccreceipt --no-tui` for the most recent session, prints the receipt instead:
+
 The npm package is `ccreceipt-cli`. Installed globally (`npm i -g ccreceipt-cli`), the command is simply `ccreceipt`; the examples below use that name.
 
 ```
@@ -44,7 +46,7 @@ It then opens a single-file HTML report with the per-task receipt, the most expe
 
 ## Terminal dashboard
 
-`ccreceipt --tui` opens a full-screen dashboard in the terminal: every session on the left, the selected one's receipt on the right, in the colours of the product (night blue, bone, gold) with its pixel coffee cup while the sessions load. The tabs are OVERVIEW, TASKS, TOOLS and MODELS for the selected session, and ALL for the totals `--all` prints: spend by project and the most expensive tasks ever. `--tui --all` opens on ALL.
+`ccreceipt` (or `ccreceipt --tui`) opens a full-screen dashboard in the terminal: every session on the left, the selected one's receipt on the right, in the colours of the product (night blue, bone, gold) with its pixel coffee cup while the sessions load. The tabs are OVERVIEW, TASKS, TOOLS and MODELS for the selected session, and ALL for the totals `--all` prints: spend by project and the most expensive tasks ever. `--tui --all` opens on ALL.
 
 ```
 ↑ ↓  j k        select a session            Tab  ← →   overview, tasks, tools, models, all
@@ -77,12 +79,13 @@ Three numbers you cannot get elsewhere:
 ## Usage
 
 ```
-ccreceipt                 receipt for the most recent session (opens the HTML report)
+ccreceipt                 in a terminal, the dashboard of every session; piped, or with
+                          --no-tui, the most recent session's receipt and its HTML report
 ccreceipt <id-or-path>    a specific session: id, id prefix, or path to the .jsonl
 ccreceipt --list          the 20 most recently active sessions with their cost
 ccreceipt --all           totals across every session on this machine, and your most expensive tasks ever
-ccreceipt --tui           interactive dashboard: browse every session and its receipt
-ccreceipt --tui --all     the same dashboard, opened on the totals across sessions
+ccreceipt --tui           the dashboard, whatever the other options
+ccreceipt --tui --all     the dashboard, opened on the totals across sessions
 
 --agent <name>      claude (default), codex, or all: whose sessions --list, --all
                     and the latest receipt read. A session id that is not a
@@ -104,6 +107,7 @@ ccreceipt --tui --all     the same dashboard, opened on the totals across sessio
 --svg <file.svg>    write the receipt as an image to share instead of the HTML
                     report, redacted by default
 --no-redact         with --svg: keep prompts, titles and names in the image
+--no-tui            print the most recent receipt instead of opening the dashboard
 --no-update-check   do not check npm for a newer version (also NO_UPDATE_NOTIFIER=1)
 -v, --version       print the version
 -h, --help          print the help
