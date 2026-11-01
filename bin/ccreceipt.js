@@ -2,7 +2,7 @@
 import { readdirSync, statSync, writeFileSync, existsSync, readFileSync, mkdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { homedir, tmpdir } from "node:os";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parseSession } from "../src/parse.js";
 import { renderHtml } from "../src/html.js";
@@ -148,6 +148,28 @@ for a newer version on npm, which sends nothing but the package name.`);
     return out;
   }
 
+  /** The shareable receipt image: redacted unless --no-redact. */
+  function writeCard(s, { redacted = false } = {}) {
+    const img = !redacted && !flag("--no-redact") ? redactSession(structuredClone(s), label(projectName(s.cwd))) : s;
+    const out = opt("--svg") ? resolve(opt("--svg")) : join(tmpdir(), "ccreceipt", `${s.id.slice(0, 8)}.svg`);
+    mkdirSync(join(out, ".."), { recursive: true });
+    writeFileSync(out, receiptSvg(receiptRows(img)));
+    return { path: out, redacted: !!img.redacted };
+  }
+
+  /** Opens an image without waiting: Quick Look on macOS (Preview cannot open SVG), the default app elsewhere. */
+  function previewImage(file) {
+    if (flag("--no-open")) return;
+    const [cmd, args] = process.platform === "darwin" ? ["qlmanage", ["-p", file]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", file]] : ["xdg-open", [file]];
+    try {
+      const child = spawn(cmd, args, { detached: true, stdio: "ignore", windowsHide: true });
+      child.on("error", () => {});
+      child.unref();
+    } catch {
+      /* no viewer: the path is shown */
+    }
+  }
+
   if (flag("--tui")) {
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
       console.error("--tui needs an interactive terminal. Use --list or --all to print instead.");
@@ -164,6 +186,11 @@ for a newer version on npm, which sends nothing but the package name.`);
       parseLight: (f) => parseAny(f, { pricing, light: true }),
       parseFull: (f) => parseAny(f, { pricing }),
       openReport: writeReport,
+      writeCard: (s, o) => {
+        const card = writeCard(s, o);
+        previewImage(card.path);
+        return card;
+      },
     });
   }
 
@@ -228,11 +255,8 @@ for a newer version on npm, which sends nothing but the package name.`);
 
   if (opt("--svg")) {
     // the image is meant to be posted: redacted unless --no-redact, whatever the terminal shows
-    const img = !redact && !flag("--no-redact") ? redactSession(structuredClone(s), label(projectName(s.cwd))) : s;
-    const svgOut = resolve(opt("--svg"));
-    mkdirSync(join(svgOut, ".."), { recursive: true });
-    writeFileSync(svgOut, receiptSvg(receiptRows(img)));
-    console.log(`  Image: ${svgOut}${img.redacted ? " (redacted; --no-redact to keep prompt texts)" : ""}\n`);
+    const card = writeCard(s, { redacted: redact });
+    console.log(`  Image: ${card.path}${card.redacted ? " (redacted; --no-redact to keep prompt texts)" : ""}\n`);
     return;
   }
 

@@ -39,6 +39,8 @@ const KEYS = {
   R: "redact",
   a: "agent",
   A: "agent",
+  s: "card",
+  S: "card",
 };
 
 /** Splits what the terminal sent into key names; unknown input is dropped. */
@@ -67,6 +69,7 @@ const AGENTS = ["claude", "codex", "all"];
 /**
  * opts: { version, agent, redact, since, until, listFiles(agent) -> files, rootOf(agent) -> path,
  *         parseLight(file), parseFull(file), openReport(session) -> path,
+ *         writeCard(session, { redacted }) -> { path, redacted },
  *         input = process.stdin, output = process.stdout, env = process.env }
  * Resolves when the user quits.
  */
@@ -258,7 +261,8 @@ export function runTui(opts) {
           state.agent = AGENTS[(AGENTS.indexOf(state.agent) + 1) % AGENTS.length];
           load().catch(fail);
           return;
-        case "enter": {
+        case "enter":
+        case "card": {
           const s = state.sessions[state.selected];
           if (!s || state.loading) break;
           try {
@@ -266,9 +270,13 @@ export function runTui(opts) {
             if (!full) details.set(s.file, (full = opts.parseFull(s.file)));
             if (full.error) throw new Error(full.error);
             const shown = state.redact ? redactSession(structuredClone(full), label(projectName(full.cwd))) : full;
-            say(`Report: ${opts.openReport(shown)}`);
+            if (key === "enter") say(`Report: ${opts.openReport(shown)}`);
+            else {
+              const card = opts.writeCard(shown, { redacted: state.redact });
+              say(`Card: ${card.path}${card.redacted ? " (redacted)" : ""}`);
+            }
           } catch (e) {
-            say(`Could not write the report: ${e.message}`);
+            say(`Could not write the ${key === "enter" ? "report" : "card"}: ${e.message}`);
           }
           break;
         }
