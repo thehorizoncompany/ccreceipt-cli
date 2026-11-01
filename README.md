@@ -4,7 +4,7 @@
 [![test](https://github.com/thehorizoncompany/ccreceipt-cli/actions/workflows/test.yml/badge.svg)](https://github.com/thehorizoncompany/ccreceipt-cli/actions/workflows/test.yml)
 [![license](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
-**The itemized receipt for your Claude Code sessions.** What each task cost, which tool result you paid for 587 times, and what the same tokens would cost on another model. Local, zero dependencies, nothing leaves your machine.
+**The itemized receipt for your Claude Code sessions**, and your OpenAI Codex CLI ones. What each task cost, which tool result you paid for 587 times, and what the same tokens would cost on another model. Local, zero dependencies, nothing leaves your machine.
 
 ```
 npx ccreceipt-cli
@@ -22,7 +22,7 @@ The npm package is `ccreceipt-cli`. Installed globally (`npm i -g ccreceipt-cli`
   #161 also redo the visuals in English …                 $76.80
   #8 ok, before archiving I want …                        $60.89
   #84 for maplibre it's because we had talked about …     $25.24
-  #79 do this: <pasted_content> 24 The cache …            $16.59
+  #79 do this: [pasted text] and fix it                   $16.59
   … 211 more tasks
   ──────────────────────────────────────────────────────────────
   Re-reading context (cache reads)                          $322
@@ -66,25 +66,41 @@ ccreceipt <id-or-path>    a specific session: id, id prefix, or path to the .jso
 ccreceipt --list          the 20 most recently active sessions with their cost
 ccreceipt --all           totals across every session on this machine, and your most expensive tasks ever
 
+--agent <name>      claude (default), codex, or all: whose sessions --list, --all
+                    and the latest receipt read. A session id that is not a
+                    Claude Code one is also looked up in Codex sessions
 --out <file.html>   where to write the report (default: a temp file)
 --json              the receipt as JSON
 --no-open           do not open the browser
---limit <n>         rows for --list / --all
---dir <path>        sessions directory (default ~/.claude/projects)
+--limit <n>         rows for --list / --all (default 20)
+--dir <path>        sessions directory (default ~/.claude/projects,
+                    or ~/.codex/sessions with --agent codex)
 --pricing <file>    JSON price overrides, USD per million tokens:
                     {"claude-opus-5-5": {"in": 4, "out": 20, "cr": 0.2}}
---svg <file.svg>    write the receipt as an image to share, redacted unless
-                    --no-redact, instead of the HTML report
 --since <date>      with --list / --all: sessions started on or after that day
                     (YYYY-MM-DD, local time) or in the last N days (7d)
 --until <date>      with --list / --all: sessions started on or before that day
+                    (YYYY-MM-DD, or 30d)
 --redact            hide prompts, replies, titles, paths, project and branch names,
                     so the receipt can be shared; every number stays the same
+--svg <file.svg>    write the receipt as an image to share instead of the HTML
+                    report, redacted by default
+--no-redact         with --svg: keep prompts, titles and names in the image
 -v, --version       print the version
 -h, --help          print the help
 ```
 
-Requires Node 18+. Reads `~/.claude/projects/*/<session>.jsonl` and the `<session>/subagents/` transcripts next to it. No network, no telemetry, no account.
+A few examples:
+
+```
+ccreceipt --list --since 7d             what you spent this week
+ccreceipt --all --since 2026-10-01      totals and priciest tasks since October 1
+ccreceipt --list --agent all            Claude Code and Codex sessions together
+ccreceipt 3f2a --svg receipt.svg        a shareable image of session 3f2a…
+ccreceipt --json | jq .cost             the cost of the latest session, in USD
+```
+
+Requires Node 18+ or Bun. Reads `~/.claude/projects/*/<session>.jsonl` and the `<session>/subagents/` transcripts next to it, and with `--agent codex` the rollouts in `~/.codex/sessions`. No network, no telemetry, no account.
 
 ## How the numbers are computed
 
