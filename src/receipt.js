@@ -38,6 +38,32 @@ export function receiptRows(s) {
   return rows;
 }
 
+/**
+ * The all-sessions receipt, from summarize(): spend by project, priciest tasks ever, total.
+ * @param {ReturnType<import("./summary.js").summarize>} sum
+ * @param {{ range?: string }} [opts] e.g. "since 2026-10-01"
+ */
+export function allReceiptRows(sum, { range = "" } = {}) {
+  const rows = [];
+  const rule = () => rows.push({ rule: true });
+  const line = (left, right = "", extra = {}) => rows.push({ left, right, ...extra });
+  const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  rule();
+  line("RECEIPT · ALL SESSIONS");
+  line([plural(sum.count, "session"), plural(sum.projects.length, "project"), range].filter(Boolean).join(" · "));
+  rule();
+  line("By project");
+  for (const [p, c] of sum.projects.slice(0, 6)) line(`  ${p}`, pad(usd(c), 8));
+  if (sum.projects.length > 6) line(`  … ${plural(sum.projects.length - 6, "more project")}`);
+  rule();
+  line("Priciest tasks");
+  for (const t of sum.tasks.slice(0, 8)) line(`  #${t.index} ${t.label} · ${t.project}`, pad(usd(t.cost), 8));
+  rule();
+  line("TOTAL", pad(usd(sum.total), 8), { total: true });
+  if (sum.count > 1) line("Average per session", pad(usd(sum.total / sum.count), 8));
+  return rows;
+}
+
 const fit = (row) => trunc(row.left, WIDTH - row.right.length - 1) + " " + row.right;
 
 /** The receipt as printed in the terminal, one string per line, with its two-space margin. */

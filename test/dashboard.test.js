@@ -162,6 +162,7 @@ async function startTui(over = {}) {
     parseFull: (f) => parseSession(f),
     openReport: (s) => (reports.push(s), "/tmp/report.html"),
     writeCard: (s, o) => (cards.push({ s, o }), { path: "/tmp/card.svg", redacted: true }),
+    writeAllCard: (sum, o) => (cards.push({ sum, o }), { path: "/tmp/all.svg", redacted: o.redacted }),
     input: term.input,
     output: term.output,
     env: { COLORTERM: "truecolor" },
@@ -218,6 +219,32 @@ test("S writes the receipt card of the selected session and shows its path", asy
   assert.deepEqual(t.cards[1].o, { redacted: true });
   await t.key("q");
   await t.done;
+});
+
+test("S on the ALL tab writes the card of every session, redacted by default", async () => {
+  const t = await startTui({ view: "all" });
+  await t.key("s");
+  assert.equal(t.cards.length, 1);
+  const { sum, o } = t.cards[0];
+  assert.equal(o.redacted, true);
+  assert.equal(sum.count, 4);
+  assert.equal(sum.total.toFixed(2), "30.03");
+  assert.deepEqual(sum.projects.map(([p]) => p), ["project-1"]);
+  assert.doesNotMatch(JSON.stringify(sum), /SENTINEL|acme-api|Cost checks/);
+  assert.match(t.last(), /Card: \/tmp\/all\.svg \(redacted\)/);
+  // on another tab, S is the selected session's card again
+  await t.key("\t");
+  await t.key("s");
+  assert.ok(t.cards[1].s, "the session card");
+  await t.key("q");
+  await t.done;
+
+  const raw = await startTui({ view: "all", cardRedacted: false });
+  await raw.key("s");
+  assert.equal(raw.cards[0].o.redacted, false, "--no-redact keeps names");
+  assert.deepEqual(raw.cards[0].sum.projects.map(([p]) => p), ["acme-api"]);
+  await raw.key("q");
+  await raw.done;
 });
 
 test("R hides prompts, titles, paths and project names in every tab and in the report", async () => {

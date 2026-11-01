@@ -2,7 +2,8 @@
 // src/dashboard.js. The terminal is restored on every way out: Q, Ctrl+C, an error, or exit.
 import { renderDashboard, VIEWS } from "./dashboard.js";
 import { colorMode } from "./canvas.js";
-import { redactSession, projectLabeler, redactedTaskLabel } from "./redact.js";
+import { redactSession, projectLabeler } from "./redact.js";
+import { summarize } from "./summary.js";
 import { projectName } from "./project.js";
 import { inRange, fmtDay } from "./dates.js";
 
@@ -85,6 +86,7 @@ export function opensDashboard(o) {
  * opts: { version, agent, redact, since, until, listFiles(agent) -> files, rootOf(agent) -> path,
  *         parseLight(file), parseFull(file), openReport(session) -> path,
  *         writeCard(session, { redacted }) -> { path, redacted },
+ *         cardRedacted (cards are redacted unless --no-redact), writeAllCard(summary, { redacted }) -> { path, redacted },
  *         input = process.stdin, output = process.stdout, env = process.env }
  * Resolves when the user quits.
  */
@@ -140,18 +142,8 @@ export function runTui(opts) {
       });
       state.total = state.sessions.reduce((n, s) => n + s.cost, 0);
       // what --all prints: spend by project and the most expensive tasks ever
-      const byProject = new Map();
-      const tasks = [];
-      state.sessions.forEach((s, i) => {
-        const project = state.rows[i].project;
-        byProject.set(project, (byProject.get(project) || 0) + s.cost);
-        for (const t of s.tasks)
-          if (!t.meta) tasks.push({ cost: t.cost, project, label: `#${t.index} ${state.redact ? redactedTaskLabel(t) : t.short}`, id: s.id });
-      });
-      state.totals = {
-        projects: [...byProject].sort((a, b) => b[1] - a[1]),
-        tasks: tasks.sort((a, b) => b.cost - a.cost).slice(0, 500),
-      };
+      const sum = summarize(state.sessions, { redact: state.redact, label });
+      state.totals = { projects: sum.projects, tasks: sum.tasks.slice(0, 500).map((t) => ({ ...t, label: `#${t.index} ${t.label}` })) };
     };
 
     const showDetail = () => {
@@ -292,8 +284,21 @@ export function runTui(opts) {
           state.agent = AGENTS[(AGENTS.indexOf(state.agent) + 1) % AGENTS.length];
           load().catch(fail);
           return;
-        case "enter":
-        case "card": {
+        case "card":
+          if (state.view === "all" && !state.loading) {
+            // the card of what the ALL tab shows: every listed session
+            try {
+              const redacted = state.redact || opts.cardRedacted !== false;
+              // with R on, the card keeps the labels on screen; otherwise project-1 is the costliest project
+              const card = opts.writeAllCard(summarize(state.sessions, { redact: redacted, label: state.redact ? label : undefined }), { redacted });
+              say(`Card: ${card.path}${card.redacted ? " (redacted)" : ""}`);
+            } catch (e) {
+              say(`Could not write the card: ${e.message}`);
+            }
+            break;
+          }
+        // falls through: on the other tabs, the selected session's card
+        case "enter": {
           const s = state.sessions[state.selected];
           if (!s || state.loading) break;
           try {
