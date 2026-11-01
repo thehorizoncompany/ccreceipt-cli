@@ -81,4 +81,6 @@ The free CLI stays free and gets the file formats of other agents (Codex, Cursor
 
 ## License
 
-MIT.
+Apache License 2.0. See `LICENSE` and `NOTICE`.
+
+Forks and derived works must keep the `LICENSE` and `NOTICE` files. The name "ccreceipt" and its logo are trademarks and are not covered by the license: if you publish a fork, give it another name. See `TRADEMARKS.md`.
