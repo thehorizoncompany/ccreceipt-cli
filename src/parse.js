@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
-import { basename, join, dirname } from "node:path";
+import { basename, join, dirname, extname } from "node:path";
 import { costOfUsage, costParts, priceFor, WHATIF } from "./pricing.js";
 
 const SYS_RE = /<system-reminder>[\s\S]*?<\/system-reminder>/g;
@@ -34,6 +34,13 @@ function toolSummary(input) {
   if (!input || typeof input !== "object") return "";
   const s = input.command ?? input.file_path ?? input.path ?? input.pattern ?? input.query ?? input.url ?? input.description ?? input.prompt ?? "";
   return String(s).replace(/\s+/g, " ").slice(0, 140);
+}
+
+// Extension of the file a tool call touched, kept by --redact instead of the full path.
+function toolExt(input) {
+  if (!input || typeof input !== "object") return "";
+  const p = input.file_path ?? input.notebook_path ?? input.path;
+  return typeof p === "string" ? extname(p) : "";
 }
 
 function readLines(file) {
@@ -223,6 +230,7 @@ export function parseSession(file, opts = {}) {
             id: b.id,
             name: b.name,
             summary: opts.light ? "" : toolSummary(b.input),
+            ext: toolExt(b.input),
             ts: d.timestamp,
             task: tk.index,
             call: owner ? owner.i : null,
@@ -267,6 +275,7 @@ export function parseSession(file, opts = {}) {
       s.agents.push({
         id: agentId,
         description: meta.description || meta.agentType || agentId,
+        type: meta.agentType || null,
         task: fixedTask ? fixedTask.index : calls[0]?.task ?? null,
         calls: calls.length,
         cost: calls.reduce((a, c) => a + c.cost, 0),

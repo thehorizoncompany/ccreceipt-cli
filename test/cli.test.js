@@ -23,7 +23,7 @@ test("--version and -v print the package version", () => {
 test("--help lists every flag", () => {
   const r = run("--help");
   assert.equal(r.status, 0);
-  for (const f of ["--list", "--all", "--out", "--json", "--no-open", "--limit", "--dir", "--pricing", "--version", "--help"]) assert.ok(r.stdout.includes(f), f);
+  for (const f of ["--list", "--all", "--out", "--json", "--no-open", "--limit", "--dir", "--pricing", "--redact", "--version", "--help"]) assert.ok(r.stdout.includes(f), f);
 });
 
 test("--list shows every session with its cost", () => {
