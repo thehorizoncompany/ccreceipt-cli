@@ -71,6 +71,9 @@ ccreceipt --all           totals across every session on this machine, and your 
 --dir <path>        sessions directory (default ~/.claude/projects)
 --pricing <file>    JSON price overrides, USD per million tokens:
                     {"claude-opus-5-5": {"in": 4, "out": 20, "cr": 0.2}}
+--since <date>      with --list / --all: sessions started on or after that day
+                    (YYYY-MM-DD, local time) or in the last N days (7d)
+--until <date>      with --list / --all: sessions started on or before that day
 --redact            hide prompts, replies, titles, paths, project and branch names,
                     so the receipt can be shared; every number stays the same
 -v, --version       print the version
