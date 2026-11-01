@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
-"""Records docs/demo.gif: the terminal dashboard browsing the invented history of scripts/build-demo.mjs.
+"""Records the README images from the invented history of scripts/build-demo.mjs:
+docs/demo.gif (the terminal dashboard in use) and docs/card.png (the all-sessions card).
 
 Dev tooling, not shipped in the npm package. Needs Python 3 with Pillow, ffmpeg, Node, and a Unix pty
 (macOS or Linux). Nothing from your own history is read: HOME points at the demo folder.
 
-Run: python3 scripts/record-demo.py [out.gif]
+Run: python3 scripts/record-demo.py [out-folder]
 """
 import os, pty, sys, time, fcntl, termios, struct, select, re, subprocess, tempfile, shutil
+import xml.etree.ElementTree as ET
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "docs", "demo.gif"))
+DOCS = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else os.path.join(ROOT, "docs"))
+OUT = os.path.join(DOCS, "demo.gif")
+MENLO = "/System/Library/Fonts/Menlo.ttc"
 COLS, ROWS = 108, 30
 FONT_SIZE = 15
 BG, BAR, MUTE, BONE, SAGE = "#040b15", "#0b1a26", "#8aa19e", "#f3e6c9", "#8fb996"
@@ -118,12 +122,42 @@ def frames_from(chunks):
     return frames
 
 
+def mono(size, bold=False):
+    if os.path.exists(MENLO):
+        return ImageFont.truetype(MENLO, size, index=1 if bold else 0)
+    return ImageFont.truetype("DejaVuSansMono-Bold.ttf" if bold else "DejaVuSansMono.ttf", size)
+
+
+def svg_to_png(svg_path, png_path):
+    """Draws the receipt card SVG (rects, lines, text) with Pillow: no browser needed."""
+    root = ET.parse(svg_path).getroot()
+    ns = "{http://www.w3.org/2000/svg}"
+    img = Image.new("RGB", (int(root.get("width")), int(root.get("height"))), "#000000")
+    d = ImageDraw.Draw(img)
+
+    def walk(node, size):
+        size = float(node.get("font-size", size))
+        tag = node.tag.replace(ns, "")
+        if tag == "rect":
+            x, y, w, h = (float(node.get(k, 0)) for k in ("x", "y", "width", "height"))
+            d.rectangle([x, y, x + w - 1, y + h - 1], fill=node.get("fill"), outline=node.get("stroke"), width=int(float(node.get("stroke-width", 0))) or 0)
+        elif tag == "line":
+            d.line([float(node.get(k)) for k in ("x1", "y1", "x2", "y2")], fill=node.get("stroke"), width=int(float(node.get("stroke-width", 1))))
+        elif tag == "text":
+            font = mono(round(size), bold=node.get("font-weight") == "700")
+            anchor = "rs" if node.get("text-anchor") == "end" else "ls"
+            d.text((float(node.get("x")), float(node.get("y"))), (node.text or "").replace("\u00a0", " "), font=font, fill=node.get("fill"), anchor=anchor)
+        for child in node:
+            walk(child, size)
+
+    walk(root, 16)
+    img.save(png_path, optimize=True)
+
+
 class Painter:
     def __init__(self):
-        menlo = "/System/Library/Fonts/Menlo.ttc"
-        path = menlo if os.path.exists(menlo) else "DejaVuSansMono.ttf"
-        self.font = ImageFont.truetype(path, FONT_SIZE, index=0)
-        self.bold = ImageFont.truetype(path, FONT_SIZE, index=1) if path == menlo else ImageFont.truetype("DejaVuSansMono-Bold.ttf", FONT_SIZE)
+        self.font = mono(FONT_SIZE)
+        self.bold = mono(FONT_SIZE, bold=True)
         self.cw = round(self.font.getlength("M"))
         self.ch = round(FONT_SIZE * 1.3)
         self.pad, self.bar = 18, 30
@@ -211,7 +245,7 @@ def main():
     for n, (t, grid) in enumerate(frames):
         nxt = frames[n + 1][0] if n + 1 < len(frames) else t + 1.5
         loading = any("IMPORTING SESSIONS" in "".join(c[0] for c in row) for row in grid)
-        dur = max(nxt - t, 0.9 if loading else 0.0)  # let the opening view be seen
+        dur = max(nxt - t, 0.35 if loading else 0.0)  # let the opening view be seen
         key = tuple(tuple(r) for r in grid)
         if key == last:
             img, prev = shots[-1]
@@ -235,8 +269,16 @@ def main():
          "-loop", "0", OUT],
         check=True,
     )
-    shutil.rmtree(work)
     print(f"{OUT}: {len(shots)} frames, {sum(d for _, d in shots):.1f} s, {os.path.getsize(OUT) // 1024} KB")
+
+    # the all-sessions card, full: the demo names are invented, so nothing needs hiding
+    svg = os.path.join(work, "card.svg")
+    env = dict(os.environ, HOME=home, NO_UPDATE_NOTIFIER="1")
+    subprocess.run(["node", os.path.join(ROOT, "bin", "ccreceipt.js"), "--all", "--svg", svg, "--no-redact"], check=True, env=env, stdout=subprocess.DEVNULL)
+    card = os.path.join(DOCS, "card.png")
+    svg_to_png(svg, card)
+    print(f"{card}: {os.path.getsize(card) // 1024} KB")
+    shutil.rmtree(work)
 
 
 if __name__ == "__main__":
