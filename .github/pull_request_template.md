@@ -2,6 +2,8 @@
 
 Closes #
 
+<!-- Release pull request (release/vX.Y.Z or hotfix/vX.Y.Z into main): one "Closes #n" line per issue of the milestone. GitHub does not close issues from pull requests into a version branch. See CONTRIBUTING.md, section 4. -->
+
 ## What changed
 
 -
