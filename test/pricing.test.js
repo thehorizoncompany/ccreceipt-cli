@@ -20,6 +20,14 @@ const SAMPLES = [
   ["claude-haiku-5-5", "Haiku 5.5"],
   ["claude-haiku-4-5", "Haiku 4.5"],
   ["claude-3-5-haiku-20241022", "Haiku 3.5"],
+  ["gpt-6-astra", "GPT-6 Astra"],
+  ["gpt-6.1-sol", "GPT-6.1 Sol"],
+  ["gpt-6-sol", "GPT-6 Sol"],
+  ["gpt-6.1-terra", "GPT-6.1 Terra"],
+  ["gpt-6-luna", "GPT-6 Luna"],
+  ["gpt-5.3-codex", "GPT-5.x Codex"],
+  ["gpt-5.1-codex-mini", "GPT-5.1 Codex mini"],
+  ["gpt-5.1-codex", "GPT-5.1 Codex"],
 ];
 
 test("every price row is reachable from a real model id", () => {

@@ -16,10 +16,38 @@ export const PRICES = [
   { match: /^claude-haiku-5-5/,  label: "Haiku 5.5",   in: 0.10, out: 0.50, cr: 0.01 },
   { match: /^claude-haiku-4-5/,  label: "Haiku 4.5",   in: 1,    out: 5,    cr: 0.10 },
   { match: /^claude-3-5-haiku/,  label: "Haiku 3.5",   in: 0.80, out: 4,    cr: 0.08 },
+  // OpenAI models used by Codex (standard tier, prompts under 272K tokens; checked 2026-11-01).
+  // cr = cached input. Codex usage reports cached tokens inside input_tokens.
+  { match: /^gpt-6-astra/,       label: "GPT-6 Astra",   in: 10,   out: 50,   cr: 1 },
+  { match: /^gpt-6\.1-sol/,      label: "GPT-6.1 Sol",   in: 2,    out: 10,   cr: 0.10 },
+  { match: /^gpt-6-sol/,         label: "GPT-6 Sol",     in: 2,    out: 10,   cr: 0.20 },
+  { match: /^gpt-6\.1-terra/,    label: "GPT-6.1 Terra", in: 1,    out: 5,    cr: 0.05 },
+  { match: /^gpt-6-luna/,        label: "GPT-6 Luna",    in: 0.10, out: 0.50, cr: 0.01 },
+  { match: /^gpt-5\.[23]-codex/,  label: "GPT-5.x Codex", in: 1.75, out: 14,   cr: 0.175 },
+  { match: /^gpt-5\.1-codex-mini/, label: "GPT-5.1 Codex mini", in: 0.25, out: 2, cr: 0.025 },
+  { match: /^gpt-5\.1-codex/,    label: "GPT-5.1 Codex", in: 1.25, out: 10,   cr: 0.125 },
 ];
 
 // Models offered in the "same tokens, other model" table.
 export const WHATIF = ["claude-haiku-5-5", "claude-sonnet-5-5", "claude-opus-5-5", "claude-opus-5", "claude-fable-5-1"];
+export const WHATIF_CODEX = ["gpt-6-luna", "gpt-6.1-terra", "gpt-6.1-sol", "gpt-6-astra"];
+
+// Codex (OpenAI) usage: input_tokens includes cached_input_tokens and cache_write_input_tokens.
+// Returns USD split by part, or null if the model has no price.
+export function codexCostParts(usage, model, overrides) {
+  const p = priceFor(model, overrides);
+  if (!p || !usage) return null;
+  const input = usage.input_tokens || 0;
+  const cached = usage.cached_input_tokens || 0;
+  const written = usage.cache_write_input_tokens || 0;
+  const M = 1e6;
+  return {
+    input: Math.max(0, input - cached - written) * p.in / M,
+    cacheWrite: written * p.in * 1.25 / M,
+    cacheRead: cached * p.cr / M,
+    output: (usage.output_tokens || 0) * p.out / M, // includes reasoning tokens
+  };
+}
 
 export function priceFor(model, overrides) {
   if (!model) return null;

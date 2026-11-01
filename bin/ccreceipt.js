@@ -11,6 +11,7 @@ import { projectName } from "../src/project.js";
 import { parseDateBound, inRange, fmtDay } from "../src/dates.js";
 import { usd, pad, trunc, dur } from "../src/format.js";
 import { receiptRows, receiptText, receiptSvg } from "../src/receipt.js";
+import { parseCodexSession, codexSessionFiles, codexIdFromFile, isCodexFile } from "../src/codex.js";
 
 // Everything runs inside main() and returns instead of calling process.exit(0):
 // under Node, stdout to a pipe is asynchronous and process.exit() would cut the output.
@@ -21,7 +22,7 @@ function main() {
     const i = argv.indexOf(n);
     return i >= 0 ? argv[i + 1] : null;
   };
-  const positional = argv.filter((a, i) => !a.startsWith("-") && !["--out", "--pricing", "--limit", "--dir", "--since", "--until", "--svg"].includes(argv[i - 1]));
+  const positional = argv.filter((a, i) => !a.startsWith("-") && !["--out", "--pricing", "--limit", "--dir", "--since", "--until", "--svg", "--agent"].includes(argv[i - 1]));
 
   if (flag("--version") || flag("-v")) {
     // readFileSync rather than a JSON import: import attributes are not stable on Node 18.
@@ -44,7 +45,9 @@ Options:
   --json              print the receipt as JSON instead of HTML
   --no-open           do not open the report in the browser
   --limit <n>         rows for --list / --all (default 20)
-  --dir <path>        sessions directory (default ~/.claude/projects)
+  --agent <name>      claude (default), codex, or all: whose sessions --list, --all and the latest receipt read.
+                      A session id is also looked up in Codex sessions when it is not a Claude Code one.
+  --dir <path>        sessions directory (default ~/.claude/projects, or ~/.codex/sessions with --agent codex)
   --pricing <file>    JSON overrides: {"claude-opus-5-5": {"in":4,"out":20,"cr":0.2}} (USD per MTok)
   --redact            hide prompts, replies, titles, paths, project and branch names (to share a receipt)
   --since <date>      with --list / --all: sessions started on or after this day (YYYY-MM-DD, or 7d for the last 7 days)
@@ -57,7 +60,14 @@ Everything runs locally. No network, no telemetry.`);
     return;
   }
 
-  const root = opt("--dir") || join(homedir(), ".claude", "projects");
+  const agent = opt("--agent") || "claude";
+  if (!["claude", "codex", "all"].includes(agent)) {
+    console.error(`Invalid --agent "${agent}": use claude, codex or all`);
+    process.exit(1);
+  }
+  const claudeRoot = (agent !== "codex" && opt("--dir")) || join(homedir(), ".claude", "projects");
+  const codexRoot = (agent === "codex" && opt("--dir")) || join(homedir(), ".codex", "sessions");
+  const root = agent === "codex" ? codexRoot : claudeRoot;
   const pricing = opt("--pricing") ? JSON.parse(readFileSync(opt("--pricing"), "utf8")) : null;
   const limit = +(opt("--limit") || 20);
   const redact = flag("--redact");
@@ -73,11 +83,11 @@ Everything runs locally. No network, no telemetry.`);
   const range = since != null || until != null ? ` (${[since != null && "since " + fmtDay(since), until != null && "until " + fmtDay(until)].filter(Boolean).join(" ")})` : "";
   const label = projectLabeler();
 
-  function allSessionFiles() {
+  function claudeSessionFiles() {
     const out = [];
-    if (!existsSync(root)) return out;
-    for (const p of readdirSync(root)) {
-      const d = join(root, p);
+    if (!existsSync(claudeRoot)) return out;
+    for (const p of readdirSync(claudeRoot)) {
+      const d = join(claudeRoot, p);
       let st;
       try {
         st = statSync(d);
@@ -87,13 +97,22 @@ Everything runs locally. No network, no telemetry.`);
       if (!st.isDirectory()) continue;
       for (const f of readdirSync(d)) if (f.endsWith(".jsonl")) out.push(join(d, f));
     }
-    return out.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+    return out;
   }
+
+  function allSessionFiles() {
+    const files = agent === "claude" ? claudeSessionFiles() : agent === "codex" ? codexSessionFiles(codexRoot) : [...claudeSessionFiles(), ...codexSessionFiles(codexRoot)];
+    return files.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+  }
+
+  const idOf = (f) => (basename(f).startsWith("rollout-") ? codexIdFromFile(f) : basename(f, ".jsonl"));
+  const parseAny = (f, o) => (isCodexFile(f) ? parseCodexSession(f, o) : parseSession(f, o));
 
   function findSession(key) {
     if (existsSync(key) && key.endsWith(".jsonl")) return resolve(key);
-    const files = allSessionFiles();
-    const hit = files.find((f) => basename(f, ".jsonl").startsWith(key));
+    let hit = allSessionFiles().find((f) => idOf(f).startsWith(key));
+    // a Codex session id given without --agent: look in the Codex sessions too
+    if (!hit && agent === "claude" && !opt("--dir")) hit = codexSessionFiles(codexRoot).find((f) => idOf(f).startsWith(key));
     if (!hit) {
       console.error(`No session matching "${key}" under ${root}`);
       process.exit(1);
@@ -111,7 +130,7 @@ Everything runs locally. No network, no telemetry.`);
     for (const f of files) {
       let s;
       try {
-        s = parseSession(f, { pricing, light: true });
+        s = parseAny(f, { pricing, light: true });
       } catch {
         continue;
       }
@@ -128,7 +147,7 @@ Everything runs locally. No network, no telemetry.`);
       rows.sort((a, b) => lastActive(b).localeCompare(lastActive(a)));
       console.log(`\n  ${pad("cost", 8)}  ${pad("dur", 5)}  ${"last active".padEnd(11)}  ${"project".padEnd(18)}  title / id\n`);
       for (const s of rows.slice(0, limit))
-        console.log(`  ${pad(usd(s.cost), 8)}  ${pad(dur(s.durationMs), 5)}  ${lastActive(s).slice(0, 10).padEnd(11)}  ${trunc(projectName(s.cwd), 18)}  ${trunc(s.title, 44)}  ${s.id.slice(0, 8)}`);
+        console.log(`  ${pad(usd(s.cost), 8)}  ${pad(dur(s.durationMs), 5)}  ${lastActive(s).slice(0, 10).padEnd(11)}  ${trunc(projectName(s.cwd), 18)}  ${trunc((agent === "all" && s.agent === "codex" ? "[codex] " : "") + s.title, 44)}  ${s.id.slice(0, 8)}`);
       console.log(`\n  ${rows.length} session${rows.length === 1 ? "" : "s"}${range}, ${usd(total)} in total. Run: ccreceipt <id>\n`);
     } else {
       console.log(`\n  ${rows.length} session${rows.length === 1 ? "" : "s"}${range} · ${usd(total)} total\n`);
@@ -147,7 +166,7 @@ Everything runs locally. No network, no telemetry.`);
     console.error(`No sessions found under ${root}`);
     process.exit(1);
   }
-  const s = parseSession(file, { pricing });
+  const s = parseAny(file, { pricing });
   if (redact) redactSession(s, label(projectName(s.cwd)));
 
   if (flag("--json")) {

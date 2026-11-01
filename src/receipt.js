@@ -30,8 +30,10 @@ export function receiptRows(s) {
   const top = s.topToolCalls[0];
   if (top) line(`Priciest tool result: ${top.name.replace(/^mcp__/, "")} ${top.summary}`.trim(), pad(usd(top.carry), 8));
   if (top) line(`  ${top.resultTokens} tokens, re-read ${top.reread}×`);
-  const cheaper = s.whatIf.find((w) => w.label === "Sonnet 5.5");
-  if (cheaper && s.mainModel && !s.mainModel.startsWith("claude-sonnet")) line(`Same tokens on Sonnet 5.5`, pad(usd(cheaper.cost), 8));
+  // a cheaper model of the same vendor, for scale
+  const [ref, refPrefix] = s.agent === "codex" ? ["GPT-6.1 Sol", "gpt-6.1-sol"] : ["Sonnet 5.5", "claude-sonnet"];
+  const cheaper = s.whatIf.find((w) => w.label === ref);
+  if (cheaper && s.mainModel && !s.mainModel.startsWith(refPrefix)) line(`Same tokens on ${ref}`, pad(usd(cheaper.cost), 8));
   if (s.unknownModels.length) line(`! unknown price for ${s.unknownModels.join(", ")} (counted $0)`);
   return rows;
 }

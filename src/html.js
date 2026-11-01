@@ -66,7 +66,7 @@ input[type=range]{width:100%;accent-color:var(--acc)}
 footer{color:var(--mute);font-size:12px;margin-top:28px;line-height:1.6}
 @media (max-width:600px){.total{font-size:44px}.row{grid-template-columns:28px 1fr 74px}}
 </style></head><body><main>
-<h1>Receipt · Claude Code session</h1>
+<h1>Receipt · ${s.agent === "codex" ? "Codex" : "Claude Code"} session</h1>
 <div class="total">${usd(s.cost)}</div>
 <div class="sub"><b>${esc(s.title)}</b><br>
 ${started ? started.toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : ""} · ${dur(s.durationMs)} · ${modelLabel(s.mainModel)} · ${s.calls.length} API calls · ${s.toolCalls.length} tool calls · ${realTasks.length} task${realTasks.length > 1 ? "s" : ""}${s.officialCost != null ? ` · Claude Code's own total: ${usd(s.officialCost)}` : ""}${s.compactions ? ` · ${s.compactions} compaction${s.compactions > 1 ? "s" : ""}` : ""}<br>
