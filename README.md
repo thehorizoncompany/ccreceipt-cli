@@ -46,6 +46,8 @@ It then opens a single-file HTML report with the per-task receipt, the most expe
 
 `ccreceipt --redact` removes your prompts, Claude's replies, the session title, file paths, project and branch names from the terminal receipt, the HTML report and `--json`. Every number stays the same. The screenshot above was made that way.
 
+`ccreceipt <id> --svg receipt.svg` writes the receipt as a 1200 px wide image, redacted by default. It opens in any browser and renders on GitHub. To post it on X, which does not take SVG, open it in a browser and take a screenshot, or convert it with any image tool.
+
 ## Why
 
 `ccusage` tells you what you spent per day. `claude-replay` shows you what happened. Neither tells you **where** the money went inside a session: which prompt, which tool call, which 40 KB file you `cat`-ed in minute 3 and then paid to re-read on every one of the next 500 API calls. The receipt does.
@@ -61,7 +63,7 @@ Three numbers you cannot get elsewhere:
 ```
 ccreceipt                 receipt for the most recent session (opens the HTML report)
 ccreceipt <id-or-path>    a specific session: id, id prefix, or path to the .jsonl
-ccreceipt --list          the last 20 sessions with their cost
+ccreceipt --list          the 20 most recently active sessions with their cost
 ccreceipt --all           totals across every session on this machine, and your most expensive tasks ever
 
 --out <file.html>   where to write the report (default: a temp file)
@@ -71,6 +73,11 @@ ccreceipt --all           totals across every session on this machine, and your 
 --dir <path>        sessions directory (default ~/.claude/projects)
 --pricing <file>    JSON price overrides, USD per million tokens:
                     {"claude-opus-5-5": {"in": 4, "out": 20, "cr": 0.2}}
+--svg <file.svg>    write the receipt as an image to share, redacted unless
+                    --no-redact, instead of the HTML report
+--since <date>      with --list / --all: sessions started on or after that day
+                    (YYYY-MM-DD, local time) or in the last N days (7d)
+--until <date>      with --list / --all: sessions started on or before that day
 --redact            hide prompts, replies, titles, paths, project and branch names,
                     so the receipt can be shared; every number stays the same
 -v, --version       print the version
@@ -89,13 +96,23 @@ Requires Node 18+. Reads `~/.claude/projects/*/<session>.jsonl` and the `<sessio
 
 **Accuracy.** Compared with the `cost-state` total Claude Code itself writes at the end of a session, on 41 sessions from one machine: 30 are within 2 %, the rest are 5 to 17 % *under*. The missing part is output Claude Code bills but does not write to disk: the Haiku model behind web search, and interrupted or retried responses. If you are on a Max/Pro plan, the dollars are what the same session would cost on the API, not what you paid.
 
+## Codex sessions
+
+`ccreceipt --agent codex` reads OpenAI Codex CLI sessions from `~/.codex/sessions` and prints the same receipt; `--agent all` lists both tools together. A Codex session id or a `rollout-*.jsonl` path also works without the flag.
+
+- One call per model response (`token_usage_record`, deduped by response id). The sum matches the running token total Codex writes in the same file.
+- `input_tokens` includes cached tokens: uncached input is priced at the input price, cached input at the cached-input price, output (reasoning included) at the output price.
+- A task is a Codex turn, labelled with the first text you typed in it; the context Codex injects (environment, instructions, review history) is skipped.
+- Prices are OpenAI's standard tier (see `src/pricing.js`, checked 2026-11-01). The surcharge for prompts over 272K tokens, Batch and Priority tiers are not applied. Models without a public price, such as `codex-auto-review`, are counted at $0 and named in the receipt.
+- Older rollouts without `token_usage_record` fall back to `token_count` events.
+
 ## What it is not
 
 Not a daily dashboard (use [ccusage](https://github.com/ccusage/ccusage)). Not a shareable video-like replay (use [claude-replay](https://github.com/es617/claude-replay)). Not a proxy (nothing to install in your shell, nothing to intercept). It reads files that are already on your disk and prints a receipt.
 
 ## Roadmap
 
-The free CLI stays free and gets the file formats of other agents (Codex, Cursor) if people ask. A paid Mac app on top of it, **ccreceipt Pro**, is in pre-order: live meter in the menu bar while a session runs, diff two sessions, one receipt across all sessions with per-project budgets and alerts, export for expense reports. Details and pre-order on the product page.
+The free CLI stays free. It reads Claude Code and OpenAI Codex sessions; Cursor comes if people ask. A paid Mac app on top of it, **ccreceipt Pro**, is in pre-order: live meter in the menu bar while a session runs, diff two sessions, one receipt across all sessions with per-project budgets and alerts, export for expense reports. Details and pre-order on the product page.
 
 ## License
 

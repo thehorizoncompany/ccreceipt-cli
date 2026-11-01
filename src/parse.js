@@ -1,10 +1,13 @@
-import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync, openSync, readSync, closeSync } from "node:fs";
+import { StringDecoder } from "node:string_decoder";
 import { basename, join, dirname, extname } from "node:path";
 import { costOfUsage, costParts, priceFor, WHATIF } from "./pricing.js";
 
 const SYS_RE = /<system-reminder>[\s\S]*?<\/system-reminder>/g;
 const CMD_RE = /<(command-name|command-message|command-args|local-command-stdout|local-command-stderr)>[\s\S]*?<\/\1>/g;
 const IMAGE_TOKENS = 1500;
+const REPLY_KEEP = 400; // characters of each assistant reply kept for the HTML replay
+const DELEGATED_RE = /^(Task|Background) \(from the session that started this one\)/;
 
 export function estimateTokens(content) {
   // Rough: 1 token per 4 characters of text; a fixed 1500 for an image.
@@ -30,30 +33,61 @@ function promptText(content) {
   return t.replace(SYS_RE, "").replace(CMD_RE, "").trim();
 }
 
-function toolSummary(input) {
+// Short label of a prompt: pasted blocks become "[pasted text]", whitespace is collapsed.
+// Claude Code wraps pasted text in <pasted_content id="…">; the closing tag is often missing.
+const PASTED_CLOSED_RE = /<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content>/g;
+const PASTED_OPEN_RE = /<pasted_content\b[^>]*>[\s\S]*$/;
+export function shortLabel(text) {
+  return text.replace(PASTED_CLOSED_RE, "[pasted text]").replace(PASTED_OPEN_RE, "[pasted text]").replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
+export function toolSummary(input) {
   if (!input || typeof input !== "object") return "";
   const s = input.command ?? input.file_path ?? input.path ?? input.pattern ?? input.query ?? input.url ?? input.description ?? input.prompt ?? "";
   return String(s).replace(/\s+/g, " ").slice(0, 140);
 }
 
 // Extension of the file a tool call touched, kept by --redact instead of the full path.
-function toolExt(input) {
+export function toolExt(input) {
   if (!input || typeof input !== "object") return "";
   const p = input.file_path ?? input.notebook_path ?? input.path;
   return typeof p === "string" ? extname(p) : "";
 }
 
-function readLines(file) {
-  const out = [];
-  for (const line of readFileSync(file, "utf8").split("\n")) {
-    if (!line) continue;
+// Yields one parsed record per line, reading the file 1 MB at a time: memory stays flat on huge transcripts.
+// Synchronous on purpose (works the same under Node and Bun, keeps parseSession synchronous).
+const CHUNK = 1 << 20;
+export function* readLines(file) {
+  const fd = openSync(file, "r");
+  const buf = Buffer.allocUnsafe(CHUNK);
+  const decoder = new StringDecoder("utf8"); // never splits a multi-byte character across chunks
+  let rest = "";
+  const parse = (line) => {
     try {
-      out.push(JSON.parse(line));
+      return JSON.parse(line);
     } catch {
-      /* partial line */
+      return undefined; // partial or corrupt line
     }
+  };
+  try {
+    let n;
+    while ((n = readSync(fd, buf, 0, CHUNK, null)) > 0) {
+      const lines = (rest + decoder.write(buf.subarray(0, n))).split("\n");
+      rest = lines.pop();
+      for (const line of lines) {
+        if (!line) continue;
+        const d = parse(line);
+        if (d !== undefined) yield d;
+      }
+    }
+    rest += decoder.end();
+    if (rest) {
+      const d = parse(rest);
+      if (d !== undefined) yield d;
+    }
+  } finally {
+    closeSync(fd);
   }
-  return out;
 }
 
 /**
@@ -91,7 +125,7 @@ export function parseSession(file, opts = {}) {
     task = {
       index: s.tasks.length + 1,
       prompt: text,
-      short: text.replace(/\s+/g, " ").slice(0, 160),
+      short: shortLabel(text),
       start: ts,
       end: ts,
       cost: 0,
@@ -158,7 +192,12 @@ export function parseSession(file, opts = {}) {
         if (!text || d.isMeta || /^\[Request interrupted/.test(text)) continue;
         const auto = text.match(/^<(task-notification|side-sessions-event|ci-monitor-event|artifact-[a-z-]+)>/);
         const t = newTask(text, d.timestamp, false);
-        if (auto) t.short = "[automatic: " + auto[1] + "] " + text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+        if (auto) {
+          // a task notification carries a readable <summary>; other events fall back to their text without tags
+          const summary = auto[1] === "task-notification" && text.match(/<summary>([\s\S]*?)<\/summary>/);
+          const detail = summary ? summary[1] : text.replace(/<[^>]+>/g, " ");
+          t.short = "[automatic: " + auto[1] + "] " + detail.replace(/\s+/g, " ").trim().slice(0, 120);
+        }
         continue;
       }
 
@@ -222,7 +261,7 @@ export function parseSession(file, opts = {}) {
       const owner = call || s.calls.find((c) => c.id === m.id);
       for (const b of content) {
         if (!b) continue;
-        if (b.type === "text" && owner && !opts.light) owner.text += (owner.text ? "\n" : "") + b.text;
+        if (b.type === "text" && owner && !opts.light && owner.text.length < REPLY_KEEP) owner.text = (owner.text + (owner.text ? "\n" : "") + b.text).slice(0, REPLY_KEEP);
         if (b.type === "tool_use") {
           const p = priceFor(model || lastModel, opts.pricing);
           const tc = {
@@ -322,8 +361,10 @@ export function parseSession(file, opts = {}) {
     }
     return { model, label: p.label, cost };
   });
+  // A session started by another Claude Code session opens with the delegation brief; its title says more.
+  const first = s.tasks.find((t) => !t.meta);
+  if (s.title && first && DELEGATED_RE.test(first.prompt)) first.short = s.title;
   if (!s.title) {
-    const first = s.tasks.find((t) => !t.meta);
     s.title = first ? first.short.slice(0, 80) : s.id;
   }
   s.unknownModels = [...s.unknownModels];

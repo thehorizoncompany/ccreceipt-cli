@@ -24,11 +24,11 @@ export function redactSession(s, projectLabel) {
   return s;
 }
 
-/** Stable neutral names for projects: the first project seen is project-1, and so on. */
+/** Stable neutral names for projects: the first project seen is project-1, and so on. Pass it the project name, not the raw cwd. */
 export function projectLabeler() {
   const seen = new Map();
-  return (cwd) => {
-    const key = cwd || "";
+  return (name) => {
+    const key = name || "";
     if (!seen.has(key)) seen.set(key, `project-${seen.size + 1}`);
     return seen.get(key);
   };

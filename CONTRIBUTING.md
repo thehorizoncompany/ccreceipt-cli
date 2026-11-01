@@ -36,7 +36,7 @@ Flow for a version:
 1. Create `release/vX.Y.Z` from `main` when work on that version starts.
 2. For each issue of the milestone, create `<type>/<issue>-<short-name>` from the version branch.
 3. Open a pull request from the issue branch into the version branch. It is merged once its acceptance criteria are met and checks are green.
-4. When every P0 and P1 issue of the milestone is merged, open a pull request from `release/vX.Y.Z` into `main`.
+4. When every P0 and P1 issue of the milestone is merged, move the unfinished issues to the next milestone, then open a pull request from `release/vX.Y.Z` into `main`. Its description lists `Closes #n` for every issue left in the milestone (see section 4).
 5. Release (section 4).
 
 Issues that are not finished move to the next milestone; they never block a version unless they are P0.
@@ -60,9 +60,15 @@ Versions follow [Semantic Versioning](https://semver.org/). Before 1.0.0, a mino
 To release `vX.Y.Z`:
 
 1. On the version branch, set `"version": "X.Y.Z"` in `package.json`.
-2. Merge `release/vX.Y.Z` into `main` with a merge commit (no squash, so the history of the version stays readable). Issues referenced with `Closes #n` close at this point.
+2. Merge `release/vX.Y.Z` into `main` with a merge commit (no squash, so the history of the version stays readable).
+
+   GitHub only closes an issue from a pull request that targets the default branch. Issue pull requests target the version branch, so their `Closes #n` does nothing. The release pull request into `main` must therefore list every issue of the milestone itself. This prints the lines to paste:
+
+   ```bash
+   gh issue list --milestone vX.Y.Z --state open --json number --jq '.[] | "Closes #\(.number)"'
+   ```
 3. Tag the merge commit `vX.Y.Z` and publish a GitHub Release with the notes: new features, fixes, breaking changes, one line each, with the issue numbers.
-4. Publishing the GitHub Release publishes the package to npm with provenance (`.github/workflows/publish.yml`). The workflow fails if the tag is not `v` + the `package.json` version. A release marked as pre-release is published under the npm tag `next`. One-time setup: an npm automation token in the repository secret `NPM_TOKEN`.
+4. Publishing the GitHub Release publishes the package to npm with provenance (`.github/workflows/publish.yml`). The workflow fails if the tag is not `v` + the `package.json` version. A release marked as pre-release is published under the npm tag `next`. Authentication is npm Trusted Publishing: no token is stored. One-time setup on npmjs.com: package `ccreceipt-cli` › Settings › Trusted publishing › GitHub Actions, organization `thehorizoncompany`, repository `ccreceipt-cli`, workflow `publish.yml`.
 5. Delete the version branch once released.
 
 A hotfix starts from `main` on `hotfix/vX.Y.Z`, gets its own issue, is merged into `main`, released, then merged into the open version branch if there is one.

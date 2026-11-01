@@ -12,6 +12,10 @@ const CWD = "/home/demo/acme-api";
 const BRANCH = "feature/receipts";
 export const SESSION_RULES = "aaaaaaaa-0000-4000-8000-000000000001";
 export const SESSION_COSTS = "bbbbbbbb-0000-4000-8000-000000000002";
+export const SESSION_WORKTREE = "cccccccc-0000-4000-8000-000000000003";
+export const SESSION_DELEGATED = "eeeeeeee-0000-4000-8000-000000000005";
+const WORKTREE_CWD = `${CWD}/.claude/worktrees/brave-turing-1a2b3c`;
+const WORKTREE_PROJECT = join(ROOT, "-home-demo-acme-api--claude-worktrees-brave-turing-1a2b3c");
 
 let clock = Date.parse("2026-10-20T09:00:00.000Z");
 const ts = () => new Date((clock += 15000)).toISOString();
@@ -78,6 +82,54 @@ const costs = [
   { type: "cost-state", totalCostUSD: 26 },
 ];
 
+// Session 3: run in a Claude Code worktree; must be counted under acme-api.
+// It starts before the other sessions and ends after them: --list must put it first.
+const worktree = [
+  user("Fix the flaky test in a worktree", { cwd: WORKTREE_CWD, timestamp: "2026-10-19T08:00:00.000Z" }),
+  assistant("msg_c1", OPUS, { input_tokens: M, output_tokens: 0 }, [{ type: "text", text: "Fixed." }], { cwd: WORKTREE_CWD, timestamp: "2026-10-19T08:01:00.000Z" }),
+  // pasted text: Claude Code wraps it in <pasted_content>, usually without a closing tag
+  user('Apply this config: <pasted_content id="7">\nport=8080\nhost=demo\n</pasted_content> then restart', { cwd: WORKTREE_CWD, timestamp: "2026-10-20T09:00:00.000Z" }),
+  user('Same for staging <pasted_content id="8">\nport=9090\nhost=staging', { cwd: WORKTREE_CWD, timestamp: "2026-10-21T09:00:00.000Z" }),
+  assistant("msg_c2", OPUS, { input_tokens: 0, output_tokens: 0 }, [{ type: "text", text: "Done." }], { cwd: WORKTREE_CWD, timestamp: "2026-10-21T10:00:00.000Z" }),
+];
+
+// Session 4: started by another Claude Code session; its first prompt is the delegation brief. No cost.
+const delegated = [
+  user("Task (from the session that started this one):\nAdd rate limiting to the login route.\nBackground (from the session that started this one):\nThe API uses Express.", { timestamp: "2026-10-18T08:00:00.000Z" }),
+  assistant("msg_e1", OPUS, { input_tokens: 0, output_tokens: 0 }, [{ type: "text", text: "On it." }], { timestamp: "2026-10-18T08:01:00.000Z" }),
+  { type: "custom-title", customTitle: "Rate limiting on login", sessionId: SESSION_DELEGATED },
+];
+
+// Codex session (OpenAI Codex CLI rollout format), in its own folder tree: test/fixtures/codex/YYYY/MM/DD/
+const CODEX_ROOT = fileURLToPath(new URL("../test/fixtures/codex/", import.meta.url));
+const CODEX_ID = "01a2c0de-0000-7000-8000-000000000007";
+const cx = (type, payload, timestamp) => ({ timestamp, type, payload });
+const cu = (input, cached, output) => ({ input_tokens: input, cached_input_tokens: cached, cache_write_input_tokens: 0, output_tokens: output, reasoning_output_tokens: 0, total_tokens: input + output });
+const codex = [
+  cx("session_meta", { id: CODEX_ID, cwd: CWD, cli_version: "0.99.0", model_provider: "openai" }, "2026-10-22T10:00:00.000Z"),
+  cx("turn_context", { model: "gpt-6-astra", cwd: CWD }, "2026-10-22T10:00:01.000Z"),
+  cx("event_msg", { type: "task_started", turn_id: "turn-1" }, "2026-10-22T10:00:02.000Z"),
+  // injected context, then what the user typed (with the tags Codex puts around a pasted image)
+  cx("response_item", { type: "message", role: "user", content: [{ type: "input_text", text: "<environment_context>\n<cwd>/home/demo/acme-api</cwd>\n</environment_context>" }] }, "2026-10-22T10:00:02.000Z"),
+  cx("response_item", { type: "message", role: "user", content: [{ type: "input_image", image_url: "data:" }, { type: "input_text", text: "<image></image> Fix the login bug SENTINEL_CODEX_PROMPT" }] }, "2026-10-22T10:00:03.000Z"),
+  cx("response_item", { type: "function_call", name: "shell", call_id: "call_1", arguments: JSON.stringify({ command: ["cat", `${CWD}/src/login.js`] }) }, "2026-10-22T10:00:04.000Z"),
+  cx("response_item", { type: "function_call_output", call_id: "call_1", output: "y".repeat(8000) }, "2026-10-22T10:00:05.000Z"), // 2,000 estimated tokens
+  // GPT-6 Astra: in 10, cached 1, out 50 per MTok; input_tokens includes the cached ones
+  cx("token_usage_record", { response_id: "resp_1", turn_id: "turn-1", usage: cu(100000, 80000, 1000), thread_token_usage: cu(100000, 80000, 1000) }, "2026-10-22T10:00:06.000Z"),
+  cx("token_usage_record", { response_id: "resp_1", turn_id: "turn-1", usage: cu(100000, 80000, 1000), thread_token_usage: cu(100000, 80000, 1000) }, "2026-10-22T10:00:06.000Z"), // duplicate: counted once
+  cx("token_usage_record", { response_id: "resp_2", turn_id: "turn-1", usage: cu(50000, 50000, 500), thread_token_usage: cu(150000, 130000, 1500) }, "2026-10-22T10:00:07.000Z"),
+  cx("response_item", { type: "message", role: "assistant", content: [{ type: "output_text", text: "Fixed. SENTINEL_CODEX_REPLY" }] }, "2026-10-22T10:00:08.000Z"),
+  cx("compacted", { message: "summary" }, "2026-10-22T10:00:09.000Z"),
+  cx("event_msg", { type: "task_started", turn_id: "turn-2" }, "2026-10-22T11:00:00.000Z"),
+  cx("turn_context", { model: "codex-auto-review", cwd: CWD }, "2026-10-22T11:00:00.000Z"),
+  cx("response_item", { type: "message", role: "user", content: [{ type: "input_text", text: "The following is the Codex agent history whose request action you are assessing." }] }, "2026-10-22T11:00:01.000Z"),
+  cx("token_usage_record", { response_id: "resp_3", turn_id: "turn-2", usage: cu(10000, 0, 100), thread_token_usage: cu(160000, 130000, 1600) }, "2026-10-22T11:00:02.000Z"),
+];
+
+rmSync(CODEX_ROOT, { recursive: true, force: true });
+mkdirSync(join(CODEX_ROOT, "2026", "10", "22"), { recursive: true });
+writeFileSync(join(CODEX_ROOT, "2026", "10", "22", `rollout-2026-10-22T10-00-00-${CODEX_ID}.jsonl`), jsonl(codex));
+
 rmSync(ROOT, { recursive: true, force: true });
 mkdirSync(join(PROJECT, SESSION_RULES, "subagents"), { recursive: true });
 writeFileSync(join(PROJECT, `${SESSION_RULES}.jsonl`), jsonl(rules));
@@ -87,4 +139,7 @@ writeFileSync(
   JSON.stringify({ toolUseId: "toolu_agent1", description: "Explore tests", agentType: "Explore" }, null, 2) + "\n",
 );
 writeFileSync(join(PROJECT, `${SESSION_COSTS}.jsonl`), jsonl(costs));
+writeFileSync(join(PROJECT, `${SESSION_DELEGATED}.jsonl`), jsonl(delegated));
+mkdirSync(WORKTREE_PROJECT, { recursive: true });
+writeFileSync(join(WORKTREE_PROJECT, `${SESSION_WORKTREE}.jsonl`), jsonl(worktree));
 console.log(`fixtures written to ${ROOT}`);
