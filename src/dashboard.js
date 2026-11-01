@@ -197,8 +197,11 @@ function sessionList(c, state, x, y, w, h) {
   box(c, x, y, w, h, "SESSION_LIST");
   const inner = w - 4;
   const costW = 8;
-  const dayW = inner < 40 ? 0 : 10; // narrow terminal: no date column
-  const projW = Math.max(6, Math.min(14, Math.floor((inner - costW - dayW - 4) / 3)));
+  // the date shrinks before the project names do: none when very narrow, MM-DD when narrow
+  const dayW = inner < 40 ? 0 : inner < 56 ? 6 : 10;
+  const longest = Math.max(7, ...state.rows.map((r) => textWidth(r.project)));
+  const fixed = costW + 1 + (dayW ? dayW + 1 : 0) + 1;
+  const projW = Math.max(6, Math.min(longest, 16, inner - fixed - 12)); // at least 12 columns of title
   const H = { fg: THEME.gold, bg: THEME.panel };
   c.put(x + 2, y + 1, "COST".padStart(costW) + " " + (dayW ? "ACTIVE".padEnd(dayW) + " " : "") + "PROJECT".padEnd(projW).slice(0, projW) + " " + "TITLE", H, inner);
   c.put(x + 1, y + 2, "─".repeat(w - 2), { fg: THEME.line, bg: THEME.panel });
@@ -213,8 +216,9 @@ function sessionList(c, state, x, y, w, h) {
     c.fill(x + 1, yy, w - 2, 1, st.bg, " ");
     c.put(x + 1, yy, sel ? "▶" : " ", st);
     let cx = c.put(x + 2, yy, usd(r.cost).padStart(costW), sel ? st : { fg: THEME.bone, bg: THEME.panel, bold: true });
-    if (dayW) cx = c.put(cx + 1, yy, (r.last || "").slice(0, dayW).padEnd(dayW), sel ? st : { fg: THEME.mute, bg: THEME.panel });
-    cx = c.put(cx + 1, yy, fitWidth(r.project, projW), sel ? st : { fg: THEME.text, bg: THEME.panel }, projW);
+    if (dayW) cx = c.put(cx + 1, yy, (dayW < 10 ? (r.last || "").slice(5) : r.last || "").padEnd(dayW), sel ? st : { fg: THEME.mute, bg: THEME.panel });
+    c.put(cx + 1, yy, fitWidth(r.project, projW), sel ? st : { fg: THEME.text, bg: THEME.panel }, projW);
+    cx += 1 + projW; // titles stay aligned whatever the project name's length
     if (r.codex) cx = c.put(cx + 1, yy, "[codex]", sel ? st : { fg: THEME.ok, bg: THEME.panel }) - 1;
     c.put(cx + 1, yy, fitWidth(r.title, x + w - 2 - (cx + 1)), st);
   }
@@ -250,20 +254,24 @@ function overview(c, s, state, x, y, w, h) {
   const bw = bigText(c, x, y + 3, total, THEME.bone, bg);
   const sx = x + bw + 4;
   const side = [];
-  if (s.officialCost != null) side.push([s.agent === "codex" ? "CODEX TOTAL" : "CLAUDE CODE'S OWN TOTAL", usd(s.officialCost)]);
+  // [label, value, warning, short label]: the short one is used when the long one does not fit
+  if (s.officialCost != null) side.push([s.agent === "codex" ? "CODEX TOTAL" : "CLAUDE CODE'S OWN TOTAL", usd(s.officialCost), false, "OWN TOTAL"]);
   const [ref, refPrefix] = s.agent === "codex" ? ["GPT-6.1 Sol", "gpt-6.1-sol"] : ["Sonnet 5.5", "claude-sonnet"];
   const cheaper = s.whatIf?.find((v) => v.label === ref);
-  if (cheaper && s.mainModel && !s.mainModel.startsWith(refPrefix)) side.push([`SAME TOKENS ON ${ref.toUpperCase()}`, usd(cheaper.cost)]);
+  if (cheaper && s.mainModel && !s.mainModel.startsWith(refPrefix)) side.push([`SAME TOKENS ON ${ref.toUpperCase()}`, usd(cheaper.cost), false, `ON ${ref.toUpperCase()}`]);
   side.push(["TASKS", String(s.tasks.filter((t) => !t.meta || t.cost > 0).length)]);
   if (s.unknownModels?.length) side[side.length - 1] = ["! UNKNOWN PRICE", s.unknownModels.join(", "), true];
   const sideW = Math.max(...side.slice(0, 3).map(([k, v]) => textWidth(k) + 2 + textWidth(v)));
   if (sx + sideW > x + w - rankW - 2) rankW = 0; // the amounts matter more than the rank
   if (rankW) bigText(c, x + w - rankW, y + 3, rank, THEME.ghost, bg);
   const sideEnd = x + w - (rankW ? rankW + 2 : 0);
-  side.slice(0, 3).forEach(([k, v, warn], i) => {
+  side.slice(0, 3).forEach(([long, v, warn, short], i) => {
     if (sx + 20 > sideEnd) return;
-    const kx = c.put(sx, y + 3 + i, k, { fg: warn ? THEME.red2 : THEME.mute, bg, bold: !!warn }, sideEnd - sx);
-    c.put(kx + 2, y + 3 + i, v, { fg: warn ? THEME.red2 : THEME.gold2, bg, bold: true }, sideEnd - kx - 2);
+    // the amount is never cut: the label gets what is left
+    const room = sideEnd - sx - textWidth(v) - 2;
+    const k = textWidth(long) <= room || !short ? long : short;
+    const kx = c.put(sx, y + 3 + i, fitWidth(k, Math.max(1, room)), { fg: warn ? THEME.red2 : THEME.mute, bg, bold: !!warn });
+    c.put(kx + 2, y + 3 + i, v, { fg: warn ? THEME.red2 : THEME.gold2, bg, bold: true }, warn ? sideEnd - kx - 2 : Infinity);
   });
 
   // where the money went
@@ -494,7 +502,7 @@ export function renderDashboard(state, W, H) {
   else {
     const top = 3;
     const h = H - top - 1;
-    const leftW = W < 100 ? 36 : Math.max(40, Math.min(70, Math.floor(W * 0.42)));
+    const leftW = W < 100 ? 36 : Math.max(44, Math.min(70, Math.floor(W * 0.45)));
     sessionList(c, state, 0, top, leftW, h);
     detailPanel(c, state, leftW, top, W - leftW, h);
   }
