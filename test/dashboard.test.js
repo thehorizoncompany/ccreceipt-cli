@@ -316,7 +316,7 @@ test("a resize redraws at the new size", async () => {
   await t.done;
 });
 
-test("a bare ccreceipt opens the dashboard only in a terminal; printing flags, ids and --no-tui keep the receipt", () => {
+test("ccreceipt, --list and --all open the dashboard only in a terminal; printing flags, ids and --no-tui print", () => {
   const tty = { stdinTTY: true, stdoutTTY: true };
   const open = (argv, positional = [], term = tty) => opensDashboard({ argv, positional, ...term });
   assert.equal(open([]), true);
@@ -324,7 +324,12 @@ test("a bare ccreceipt opens the dashboard only in a terminal; printing flags, i
   assert.equal(open([], [], { stdinTTY: true, stdoutTTY: false }), false, "piped output");
   assert.equal(open([], [], { stdinTTY: false, stdoutTTY: true }), false, "piped input");
   assert.equal(open(["3f2a"], ["3f2a"]), false);
-  for (const f of ["--json", "--svg", "--out", "--list", "--all", "--no-tui"]) assert.equal(open([f]), false, f);
+  for (const f of ["--json", "--svg", "--out", "--no-tui"]) assert.equal(open([f]), false, f);
+  assert.equal(open(["--all"]), true, "--all opens the dashboard on ALL");
+  assert.equal(open(["--list", "--since", "7d"]), true);
+  assert.equal(open(["--all"], [], { stdinTTY: true, stdoutTTY: false }), false, "--all piped prints");
+  assert.equal(open(["--list", "--no-tui"]), false);
+  assert.equal(open(["--all", "--svg", "all.svg"]), false, "--all --svg prints and writes the card");
   assert.equal(open(["--tui", "--all"]), true);
   assert.equal(open(["--tui"], [], { stdinTTY: false, stdoutTTY: false }), true, "--tui decides, then fails without a terminal");
 });

@@ -43,9 +43,11 @@ function main() {
 Usage:
   ccreceipt                 in a terminal: the dashboard of every session; otherwise the most recent receipt
   ccreceipt <id-or-path>    receipt for that session (session id, prefix, or .jsonl path)
-  ccreceipt --list          the 20 most recently active sessions with their cost
-  ccreceipt --all           totals across every session on this machine
-  ccreceipt --tui           the dashboard, whatever the other options (--all: open on the totals)
+  ccreceipt --list          the sessions with their cost (in a terminal: the dashboard)
+  ccreceipt --all           totals across every session (in a terminal: the dashboard, ALL tab)
+  ccreceipt --tui           the dashboard, whatever the other options
+
+  Piped, in CI, or with --no-tui, --json, --svg or --out, every command prints instead.
 
 Options:
   --out <file.html>   where to write the report (default: a temp file)
@@ -60,7 +62,7 @@ Options:
   --since <date>      with --list / --all: sessions started on or after this day (YYYY-MM-DD, or 7d for the last 7 days)
   --until <date>      with --list / --all: sessions started on or before this day (YYYY-MM-DD, or 30d)
   --svg <file.svg>    write the receipt as an image to share (redacted unless --no-redact), instead of the HTML report
-  --no-tui            print the most recent session's receipt instead of opening the dashboard
+  --no-tui            print instead of opening the dashboard (receipt, --list, --all)
   --no-update-check   do not check npm for a newer version (also NO_UPDATE_NOTIFIER=1)
   -v, --version       print the version
   -h, --help          print this help

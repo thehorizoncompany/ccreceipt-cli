@@ -66,12 +66,12 @@ export function parseKeys(data) {
 }
 
 const AGENTS = ["claude", "codex", "all"];
-const PRINTING = ["--json", "--svg", "--out", "--list", "--all"];
+const PRINTING = ["--json", "--svg", "--out"];
 
 /**
- * Whether a run opens the dashboard: always with --tui; otherwise only for a bare `ccreceipt`
- * (no session, no printing flag, no --no-tui) in an interactive terminal, so scripts and pipes
- * keep the printed receipt.
+ * Whether a run opens the dashboard: always with --tui; otherwise for `ccreceipt`, `--list` and
+ * `--all` (no session id, no printing flag, no --no-tui) in an interactive terminal, so scripts
+ * and pipes keep the printed output.
  * The terminal checks are read last and lazily (pass getters): under Bun, touching
  * process.stdin can cut a large output piped to stdout when the process exits.
  */
