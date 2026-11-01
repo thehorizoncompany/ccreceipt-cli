@@ -44,11 +44,11 @@ It then opens a single-file HTML report with the per-task receipt, the most expe
 
 ## Terminal dashboard
 
-`ccreceipt --tui` opens a full-screen dashboard in the terminal: every session on the left, the selected one's receipt on the right, in the colours of the product (night blue, bone, gold) with its pixel coffee cup while the sessions load.
+`ccreceipt --tui` opens a full-screen dashboard in the terminal: every session on the left, the selected one's receipt on the right, in the colours of the product (night blue, bone, gold) with its pixel coffee cup while the sessions load. The tabs are OVERVIEW, TASKS, TOOLS and MODELS for the selected session, and ALL for the totals `--all` prints: spend by project and the most expensive tasks ever. `--tui --all` opens on ALL.
 
 ```
-↑ ↓  j k        select a session            Tab  ← →   overview, tasks, tools, models
-PgUp PgDn       scroll the tasks or tools   Enter      write and open the HTML report
+↑ ↓  j k        select a session            Tab  ← →   overview, tasks, tools, models, all
+PgUp PgDn       scroll a table              Enter      write and open the HTML report
 S               write the receipt card (SVG) and preview it
 R               redact everything on screen A          claude, codex, all
 Q  Esc  Ctrl+C  quit
@@ -82,6 +82,7 @@ ccreceipt <id-or-path>    a specific session: id, id prefix, or path to the .jso
 ccreceipt --list          the 20 most recently active sessions with their cost
 ccreceipt --all           totals across every session on this machine, and your most expensive tasks ever
 ccreceipt --tui           interactive dashboard: browse every session and its receipt
+ccreceipt --tui --all     the same dashboard, opened on the totals across sessions
 
 --agent <name>      claude (default), codex, or all: whose sessions --list, --all
                     and the latest receipt read. A session id that is not a

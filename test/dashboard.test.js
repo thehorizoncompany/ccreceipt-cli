@@ -241,6 +241,32 @@ test("R hides prompts, titles, paths and project names in every tab and in the r
   await t.done;
 });
 
+test("the ALL tab shows what --all prints, and --tui --all opens on it", async () => {
+  const t = await startTui({ view: "all" });
+  const all = spawnSync(process.execPath, [BIN, "--all", "--dir", DIR], { encoding: "utf8" }).stdout;
+  const total = /· (\$[\d.]+) total/.exec(all)[1];
+  const text = t.last();
+  assert.match(text, /All sessions/);
+  assert.match(text, /4 sessions · 1 project/);
+  assert.match(text, new RegExp(`${total.replace("$", "\\$")} TOTAL`));
+  assert.match(text, /BY_PROJECT/);
+  assert.match(text, /acme-api .*\$30\.03/);
+  assert.match(text, /PRICIEST_TASKS_EVER/);
+  assert.match(text, /\$26\.00 acme-api +#1 Cost checks +bbbbbbbb/);
+  assert.match(text, /8 rows/);
+  await t.key("r");
+  assert.doesNotMatch(t.last(), /SENTINEL|acme-api|Cost checks/);
+  assert.match(t.last(), /#1 \(prompt redacted\)/);
+  assert.match(t.last(), /#3 \[automatic: task-notification\]/);
+  await t.key("q");
+  await t.done;
+});
+
+test("every tab, ALL included, is visible at 80 columns", () => {
+  const top = screen(state({ view: "all" }), 80, 24)[3];
+  for (const v of VIEWS) assert.ok(top.includes(v.toUpperCase()), v);
+});
+
 test("A cycles the agent and reloads; an empty agent shows the empty state", async () => {
   const t = await startTui();
   await t.key("a");

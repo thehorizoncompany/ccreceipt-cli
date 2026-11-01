@@ -2,9 +2,9 @@
 // src/dashboard.js. The terminal is restored on every way out: Q, Ctrl+C, an error, or exit.
 import { renderDashboard, VIEWS } from "./dashboard.js";
 import { colorMode } from "./canvas.js";
-import { redactSession, projectLabeler } from "./redact.js";
+import { redactSession, projectLabeler, redactedTaskLabel } from "./redact.js";
 import { projectName } from "./project.js";
-import { inRange } from "./dates.js";
+import { inRange, fmtDay } from "./dates.js";
 
 const KEYS = {
   "\x1b[A": "up",
@@ -90,8 +90,10 @@ export function runTui(opts) {
     total: 0,
     selected: 0,
     detail: null,
-    view: "overview",
+    view: VIEWS.includes(opts.view) ? opts.view : "overview",
     scroll: 0,
+    totals: null,
+    range: [opts.since != null && "since " + fmtDay(opts.since), opts.until != null && "until " + fmtDay(opts.until)].filter(Boolean).join(" "),
     tick: 0,
     message: null,
   };
@@ -122,6 +124,19 @@ export function runTui(opts) {
         };
       });
       state.total = state.sessions.reduce((n, s) => n + s.cost, 0);
+      // what --all prints: spend by project and the most expensive tasks ever
+      const byProject = new Map();
+      const tasks = [];
+      state.sessions.forEach((s, i) => {
+        const project = state.rows[i].project;
+        byProject.set(project, (byProject.get(project) || 0) + s.cost);
+        for (const t of s.tasks)
+          if (!t.meta) tasks.push({ cost: t.cost, project, label: `#${t.index} ${state.redact ? redactedTaskLabel(t) : t.short}`, id: s.id });
+      });
+      state.totals = {
+        projects: [...byProject].sort((a, b) => b[1] - a[1]),
+        tasks: tasks.sort((a, b) => b.cost - a.cost).slice(0, 500),
+      };
     };
 
     const showDetail = () => {
@@ -155,7 +170,7 @@ export function runTui(opts) {
       const next = Math.max(0, Math.min(n - 1, i));
       if (next !== state.selected) {
         state.selected = next;
-        state.scroll = 0;
+        if (state.view !== "all") state.scroll = 0;
       }
       showDetail();
     };
@@ -207,6 +222,7 @@ export function runTui(opts) {
 
     const pageSize = () => Math.max(1, (output.rows || 24) - 9);
     const viewRows = () => {
+      if (state.view === "all") return state.totals?.tasks.length || 0;
       const d = state.detail;
       if (!d || d.error) return 0;
       if (state.view === "tasks") return d.tasks.filter((t) => !t.meta || t.cost > 0).length;
@@ -234,11 +250,11 @@ export function runTui(opts) {
           select(state.sessions.length - 1);
           break;
         case "pageup":
-          if (state.view === "tasks" || state.view === "tools") scrollBy(-pageSize());
+          if (state.view !== "overview" && state.view !== "models") scrollBy(-pageSize());
           else select(state.selected - pageSize());
           break;
         case "pagedown":
-          if (state.view === "tasks" || state.view === "tools") scrollBy(pageSize());
+          if (state.view !== "overview" && state.view !== "models") scrollBy(pageSize());
           else select(state.selected + pageSize());
           break;
         case "tab":
