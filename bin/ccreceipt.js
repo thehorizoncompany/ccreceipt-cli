@@ -12,6 +12,12 @@ import { parseDateBound, inRange, fmtDay } from "../src/dates.js";
 import { usd, pad, trunc, dur } from "../src/format.js";
 import { receiptRows, receiptText, receiptSvg } from "../src/receipt.js";
 import { parseCodexSession, codexSessionFiles, codexIdFromFile, isCodexFile } from "../src/codex.js";
+import { updateCheckEnabled, updateCacheFile, updateNotice } from "../src/update.js";
+
+// readFileSync rather than a JSON import: import attributes are not stable on Node 18.
+function packageVersion() {
+  return JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8")).version;
+}
 
 // Everything runs inside main() and returns instead of calling process.exit(0):
 // under Node, stdout to a pipe is asynchronous and process.exit() would cut the output.
@@ -25,9 +31,7 @@ function main() {
   const positional = argv.filter((a, i) => !a.startsWith("-") && !["--out", "--pricing", "--limit", "--dir", "--since", "--until", "--svg", "--agent"].includes(argv[i - 1]));
 
   if (flag("--version") || flag("-v")) {
-    // readFileSync rather than a JSON import: import attributes are not stable on Node 18.
-    const pkg = JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"));
-    console.log(pkg.version);
+    console.log(packageVersion());
     return;
   }
 
@@ -53,10 +57,12 @@ Options:
   --since <date>      with --list / --all: sessions started on or after this day (YYYY-MM-DD, or 7d for the last 7 days)
   --until <date>      with --list / --all: sessions started on or before this day (YYYY-MM-DD, or 30d)
   --svg <file.svg>    write the receipt as an image to share (redacted unless --no-redact), instead of the HTML report
+  --no-update-check   do not check npm for a newer version (also NO_UPDATE_NOTIFIER=1)
   -v, --version       print the version
   -h, --help          print this help
 
-Everything runs locally. No network, no telemetry.`);
+Everything runs locally, no telemetry. The only network request is a daily check
+for a newer version on npm, which sends nothing but the package name.`);
     return;
   }
 
@@ -204,4 +210,19 @@ Everything runs locally. No network, no telemetry.`);
   }
 }
 
+// One line on stderr after the output when npm has a newer version (see src/update.js).
+function notifyUpdate() {
+  const argv = process.argv.slice(2);
+  if (["--help", "-h", "--version", "-v"].some((f) => argv.includes(f))) return;
+  if (!updateCheckEnabled({ argv, env: process.env, isTTY: !!process.stdout.isTTY })) return;
+  try {
+    const line = updateNotice({ current: packageVersion(), file: updateCacheFile(), scriptPath: fileURLToPath(import.meta.url) });
+    // a plain write: Bun colors console.error output red
+    if (line) process.stderr.write(`  ${line}\n\n`);
+  } catch {
+    /* never fail a command over the version check */
+  }
+}
+
 main();
+notifyUpdate();

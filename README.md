@@ -4,7 +4,7 @@
 [![test](https://github.com/thehorizoncompany/ccreceipt-cli/actions/workflows/test.yml/badge.svg)](https://github.com/thehorizoncompany/ccreceipt-cli/actions/workflows/test.yml)
 [![license](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
-**The itemized receipt for your Claude Code sessions**, and your OpenAI Codex CLI ones. What each task cost, which tool result you paid for 587 times, and what the same tokens would cost on another model. Local, zero dependencies, nothing leaves your machine.
+**The itemized receipt for your Claude Code sessions**, and your OpenAI Codex CLI ones. What each task cost, which tool result you paid for 587 times, and what the same tokens would cost on another model. Local, zero dependencies, your sessions never leave your machine.
 
 ```
 npx ccreceipt-cli
@@ -86,6 +86,7 @@ ccreceipt --all           totals across every session on this machine, and your 
 --svg <file.svg>    write the receipt as an image to share instead of the HTML
                     report, redacted by default
 --no-redact         with --svg: keep prompts, titles and names in the image
+--no-update-check   do not check npm for a newer version (also NO_UPDATE_NOTIFIER=1)
 -v, --version       print the version
 -h, --help          print the help
 ```
@@ -100,7 +101,17 @@ ccreceipt 3f2a --svg receipt.svg        a shareable image of session 3f2a…
 ccreceipt --json | jq .cost             the cost of the latest session, in USD
 ```
 
-Requires Node 18+ or Bun. Reads `~/.claude/projects/*/<session>.jsonl` and the `<session>/subagents/` transcripts next to it, and with `--agent codex` the rollouts in `~/.codex/sessions`. No network, no telemetry, no account.
+Requires Node 18+ or Bun. Reads `~/.claude/projects/*/<session>.jsonl` and the `<session>/subagents/` transcripts next to it, and with `--agent codex` the rollouts in `~/.codex/sessions`. No telemetry, no account.
+
+## Update check
+
+Once a day at most, ccreceipt asks the npm registry for the latest version of `ccreceipt-cli`. It is the only network request the CLI makes, and it sends nothing but the package name: no session data, no identifier. The request runs in the background and never slows a command down; when a newer version exists, one line at the end of the output says so on the next run:
+
+```
+  ccreceipt 0.3.0 is available (you have 0.2.1): npm i -g ccreceipt-cli
+```
+
+The answer is stored in `~/.cache/ccreceipt/update.json` (or `$XDG_CACHE_HOME/ccreceipt/`). There is no check in CI (`CI` set), when the output is not a terminal, with `--json`, with `--no-update-check`, or with `NO_UPDATE_NOTIFIER=1` in your environment. The CLI never updates itself.
 
 ## How the numbers are computed
 
