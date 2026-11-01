@@ -1,16 +1,18 @@
 # ccreceipt
 
-[![npm](https://img.shields.io/npm/v/ccreceipt)](https://www.npmjs.com/package/ccreceipt)
+[![npm](https://img.shields.io/npm/v/ccreceipt-cli)](https://www.npmjs.com/package/ccreceipt-cli)
 [![test](https://github.com/thehorizoncompany/ccreceipt-cli/actions/workflows/test.yml/badge.svg)](https://github.com/thehorizoncompany/ccreceipt-cli/actions/workflows/test.yml)
 [![license](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
 **The itemized receipt for your Claude Code sessions.** What each task cost, which tool result you paid for 587 times, and what the same tokens would cost on another model. Local, zero dependencies, nothing leaves your machine.
 
 ```
-npx ccreceipt
+npx ccreceipt-cli
 ```
 
-Works the same with `bunx ccreceipt`, `pnpm dlx ccreceipt` or `yarn dlx ccreceipt`. Node 18+ or Bun, nothing to configure.
+Works the same with `bunx ccreceipt-cli`, `pnpm dlx ccreceipt-cli` or `yarn dlx ccreceipt-cli`. Node 18+ or Bun, nothing to configure.
+
+The npm package is `ccreceipt-cli`. Installed globally (`npm i -g ccreceipt-cli`), the command is simply `ccreceipt`; the examples below use that name.
 
 ```
   ──────────────────────────────────────────────────────────────
