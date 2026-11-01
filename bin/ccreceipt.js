@@ -2,16 +2,24 @@
 import { readdirSync, statSync, writeFileSync, existsSync, readFileSync, mkdirSync } from "node:fs";
 import { join, resolve, basename } from "node:path";
 import { homedir, tmpdir } from "node:os";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parseSession } from "../src/parse.js";
 import { renderHtml } from "../src/html.js";
-import { redactSession, projectLabeler } from "../src/redact.js";
+import { redactSession, projectLabeler, rankedLabeler } from "../src/redact.js";
 import { projectName } from "../src/project.js";
 import { parseDateBound, inRange, fmtDay } from "../src/dates.js";
 import { usd, pad, trunc, dur } from "../src/format.js";
-import { receiptRows, receiptText, receiptSvg } from "../src/receipt.js";
+import { receiptRows, receiptText, receiptSvg, allReceiptRows } from "../src/receipt.js";
+import { summarize } from "../src/summary.js";
 import { parseCodexSession, codexSessionFiles, codexIdFromFile, isCodexFile } from "../src/codex.js";
+import { updateCheckEnabled, updateCacheFile, updateNotice } from "../src/update.js";
+import { runTui, opensDashboard } from "../src/tui.js";
+
+// readFileSync rather than a JSON import: import attributes are not stable on Node 18.
+function packageVersion() {
+  return JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8")).version;
+}
 
 // Everything runs inside main() and returns instead of calling process.exit(0):
 // under Node, stdout to a pipe is asynchronous and process.exit() would cut the output.
@@ -25,9 +33,7 @@ function main() {
   const positional = argv.filter((a, i) => !a.startsWith("-") && !["--out", "--pricing", "--limit", "--dir", "--since", "--until", "--svg", "--agent"].includes(argv[i - 1]));
 
   if (flag("--version") || flag("-v")) {
-    // readFileSync rather than a JSON import: import attributes are not stable on Node 18.
-    const pkg = JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"));
-    console.log(pkg.version);
+    console.log(packageVersion());
     return;
   }
 
@@ -35,10 +41,13 @@ function main() {
     console.log(`ccreceipt – the itemized receipt for a Claude Code or Codex session
 
 Usage:
-  ccreceipt                 receipt for the most recent session (opens an HTML report)
+  ccreceipt                 in a terminal: the dashboard of every session; otherwise the most recent receipt
   ccreceipt <id-or-path>    receipt for that session (session id, prefix, or .jsonl path)
-  ccreceipt --list          the 20 most recently active sessions with their cost
-  ccreceipt --all           totals across every session on this machine
+  ccreceipt --list          the sessions with their cost (in a terminal: the dashboard)
+  ccreceipt --all           totals across every session (in a terminal: the dashboard, ALL tab)
+  ccreceipt --tui           the dashboard, whatever the other options
+
+  Piped, in CI, or with --no-tui, --json, --svg or --out, every command prints instead.
 
 Options:
   --out <file.html>   where to write the report (default: a temp file)
@@ -53,10 +62,13 @@ Options:
   --since <date>      with --list / --all: sessions started on or after this day (YYYY-MM-DD, or 7d for the last 7 days)
   --until <date>      with --list / --all: sessions started on or before this day (YYYY-MM-DD, or 30d)
   --svg <file.svg>    write the receipt as an image to share (redacted unless --no-redact), instead of the HTML report
+  --no-tui            print instead of opening the dashboard (receipt, --list, --all)
+  --no-update-check   do not check npm for a newer version (also NO_UPDATE_NOTIFIER=1)
   -v, --version       print the version
   -h, --help          print this help
 
-Everything runs locally. No network, no telemetry.`);
+Everything runs locally, no telemetry. The only network request is a daily check
+for a newer version on npm, which sends nothing but the package name.`);
     return;
   }
 
@@ -65,8 +77,11 @@ Everything runs locally. No network, no telemetry.`);
     console.error(`Invalid --agent "${agent}": use claude, codex or all`);
     process.exit(1);
   }
-  const claudeRoot = (agent !== "codex" && opt("--dir")) || join(homedir(), ".claude", "projects");
-  const codexRoot = (agent === "codex" && opt("--dir")) || join(homedir(), ".codex", "sessions");
+  // --dir applies to the agent given on the command line
+  const claudeRootFor = (a) => (a !== "codex" && opt("--dir")) || join(homedir(), ".claude", "projects");
+  const codexRootFor = (a) => (a === "codex" && opt("--dir")) || join(homedir(), ".codex", "sessions");
+  const claudeRoot = claudeRootFor(agent);
+  const codexRoot = codexRootFor(agent);
   const root = agent === "codex" ? codexRoot : claudeRoot;
   const pricing = opt("--pricing") ? JSON.parse(readFileSync(opt("--pricing"), "utf8")) : null;
   const limit = +(opt("--limit") || 20);
@@ -83,11 +98,11 @@ Everything runs locally. No network, no telemetry.`);
   const range = since != null || until != null ? ` (${[since != null && "since " + fmtDay(since), until != null && "until " + fmtDay(until)].filter(Boolean).join(" ")})` : "";
   const label = projectLabeler();
 
-  function claudeSessionFiles() {
+  function claudeSessionFiles(dir = claudeRoot) {
     const out = [];
-    if (!existsSync(claudeRoot)) return out;
-    for (const p of readdirSync(claudeRoot)) {
-      const d = join(claudeRoot, p);
+    if (!existsSync(dir)) return out;
+    for (const p of readdirSync(dir)) {
+      const d = join(dir, p);
       let st;
       try {
         st = statSync(d);
@@ -100,9 +115,11 @@ Everything runs locally. No network, no telemetry.`);
     return out;
   }
 
-  function allSessionFiles() {
-    const files = agent === "claude" ? claudeSessionFiles() : agent === "codex" ? codexSessionFiles(codexRoot) : [...claudeSessionFiles(), ...codexSessionFiles(codexRoot)];
-    return files.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+  function allSessionFiles(a = agent) {
+    const claude = () => claudeSessionFiles(claudeRootFor(a));
+    const codex = () => codexSessionFiles(codexRootFor(a));
+    const files = a === "claude" ? claude() : a === "codex" ? codex() : [...claude(), ...codex()];
+    return files.sort((x, y) => statSync(y).mtimeMs - statSync(x).mtimeMs);
   }
 
   const idOf = (f) => (basename(f).startsWith("rollout-") ? codexIdFromFile(f) : basename(f, ".jsonl"));
@@ -120,13 +137,97 @@ Everything runs locally. No network, no telemetry.`);
     return hit;
   }
 
+  function writeReport(s) {
+    const out = opt("--out") ? resolve(opt("--out")) : join(tmpdir(), "ccreceipt", `${s.id.slice(0, 8)}.html`);
+    mkdirSync(join(out, ".."), { recursive: true });
+    writeFileSync(out, renderHtml(s));
+    if (!flag("--no-open")) {
+      try {
+        const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
+        execFileSync(cmd, process.platform === "win32" ? ["/c", "start", "", out] : [out], { stdio: "ignore" });
+      } catch {
+        /* no browser: the path is printed */
+      }
+    }
+    return out;
+  }
+
+  /** The shareable receipt image: redacted unless --no-redact. */
+  function writeCard(s, { redacted = false } = {}) {
+    const img = !redacted && !flag("--no-redact") ? redactSession(structuredClone(s), label(projectName(s.cwd))) : s;
+    const out = opt("--svg") ? resolve(opt("--svg")) : join(tmpdir(), "ccreceipt", `${s.id.slice(0, 8)}.svg`);
+    mkdirSync(join(out, ".."), { recursive: true });
+    writeFileSync(out, receiptSvg(receiptRows(img)));
+    return { path: out, redacted: !!img.redacted };
+  }
+
+  /** The all-sessions card from summarize(); the caller redacts the summary. */
+  function writeAllCard(sum, { redacted }) {
+    const out = opt("--svg") ? resolve(opt("--svg")) : join(tmpdir(), "ccreceipt", "all-sessions.svg");
+    const span = [since != null && "since " + fmtDay(since), until != null && "until " + fmtDay(until)].filter(Boolean).join(" ");
+    mkdirSync(join(out, ".."), { recursive: true });
+    writeFileSync(out, receiptSvg(allReceiptRows(sum, { range: span })));
+    return { path: out, redacted };
+  }
+
+  /** Opens an image without waiting: Quick Look on macOS (Preview cannot open SVG), the default app elsewhere. */
+  function previewImage(file) {
+    if (flag("--no-open")) return;
+    const [cmd, args] = process.platform === "darwin" ? ["qlmanage", ["-p", file]] : process.platform === "win32" ? ["cmd", ["/c", "start", "", file]] : ["xdg-open", [file]];
+    try {
+      const child = spawn(cmd, args, { detached: true, stdio: "ignore", windowsHide: true });
+      child.on("error", () => {});
+      child.unref();
+    } catch {
+      /* no viewer: the path is shown */
+    }
+  }
+
+  const dashboard = opensDashboard({
+    argv,
+    positional,
+    get stdoutTTY() {
+      return process.stdout.isTTY;
+    },
+    get stdinTTY() {
+      return process.stdin.isTTY;
+    },
+  });
+  if (dashboard) {
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      console.error("--tui needs an interactive terminal. Use --list or --all to print instead.");
+      process.exit(1);
+    }
+    return runTui({
+      version: packageVersion(),
+      agent,
+      redact,
+      since,
+      until,
+      view: flag("--all") ? "all" : "overview",
+      listFiles: (a) => allSessionFiles(a),
+      rootOf: (a) => (a === "codex" ? codexRootFor(a) : a === "all" ? `${claudeRootFor(a)} + ${codexRootFor(a)}` : claudeRootFor(a)),
+      parseLight: (f) => parseAny(f, { pricing, light: true }),
+      parseFull: (f) => parseAny(f, { pricing }),
+      openReport: writeReport,
+      // the dashboard redacts (or not) as the user chose: write what it gives
+      writeCard: (s, o) => {
+        const card = writeCard(s, { redacted: true });
+        previewImage(card.path);
+        return { path: card.path, redacted: o.redacted };
+      },
+      cardRedacted: !flag("--no-redact"),
+      writeAllCard: (sum, o) => {
+        const card = writeAllCard(sum, o);
+        previewImage(card.path);
+        return card;
+      },
+    });
+  }
 
   if (flag("--list") || flag("--all")) {
     const files = allSessionFiles();
     const rows = [];
-    let total = 0;
-    const byProject = {};
-    const tasks = [];
     for (const f of files) {
       let s;
       try {
@@ -135,12 +236,16 @@ Everything runs locally. No network, no telemetry.`);
         continue;
       }
       if (!inRange(s, since, until)) continue;
-      if (redact) redactSession(s, label(projectName(s.cwd)));
-      total += s.cost;
-      byProject[projectName(s.cwd)] = (byProject[projectName(s.cwd)] || 0) + s.cost;
       rows.push(s);
-      for (const t of s.tasks) if (!t.meta) tasks.push({ ...t, session: s });
     }
+    // numbered by spend: project-1 is the costliest project, as in the dashboard and the cards
+    if (redact) {
+      const byspend = rankedLabeler(rows, (s) => projectName(s.cwd));
+      for (const s of rows) redactSession(s, byspend(projectName(s.cwd)));
+    }
+    // sessions are already redacted with --redact
+    const sum = summarize(rows);
+    const total = sum.total;
     if (flag("--list")) {
       // most recently active first: the date shown is the last API call, and rows are sorted by it
       const lastActive = (s) => s.end || s.start || "";
@@ -152,11 +257,14 @@ Everything runs locally. No network, no telemetry.`);
     } else {
       console.log(`\n  ${rows.length} session${rows.length === 1 ? "" : "s"}${range} · ${usd(total)} total\n`);
       console.log("  By project");
-      for (const [p, c] of Object.entries(byProject).sort((a, b) => b[1] - a[1]).slice(0, limit)) console.log(`  ${pad(usd(c), 8)}  ${p}`);
+      for (const [p, c] of sum.projects.slice(0, limit)) console.log(`  ${pad(usd(c), 8)}  ${p}`);
       console.log("\n  Most expensive tasks ever");
-      for (const t of tasks.sort((a, b) => b.cost - a.cost).slice(0, limit))
-        console.log(`  ${pad(usd(t.cost), 8)}  ${trunc(projectName(t.session.cwd), 14)}  ${trunc(`#${t.index} ${t.short}`, 70)}  ${t.session.id.slice(0, 8)}`);
+      for (const t of sum.tasks.slice(0, limit)) console.log(`  ${pad(usd(t.cost), 8)}  ${trunc(t.project, 14)}  ${trunc(`#${t.index} ${t.label}`, 70)}  ${t.id.slice(0, 8)}`);
       console.log();
+      if (opt("--svg")) {
+        const card = writeAllCard(redact || flag("--no-redact") ? sum : summarize(rows, { redact: true }), { redacted: redact || !flag("--no-redact") });
+        console.log(`  Image: ${card.path}${card.redacted ? " (redacted; --no-redact to keep names and prompts)" : ""}\n`);
+      }
     }
     return;
   }
@@ -182,26 +290,30 @@ Everything runs locally. No network, no telemetry.`);
 
   if (opt("--svg")) {
     // the image is meant to be posted: redacted unless --no-redact, whatever the terminal shows
-    const img = !redact && !flag("--no-redact") ? redactSession(structuredClone(s), label(projectName(s.cwd))) : s;
-    const svgOut = resolve(opt("--svg"));
-    mkdirSync(join(svgOut, ".."), { recursive: true });
-    writeFileSync(svgOut, receiptSvg(receiptRows(img)));
-    console.log(`  Image: ${svgOut}${img.redacted ? " (redacted; --no-redact to keep prompt texts)" : ""}\n`);
+    const card = writeCard(s, { redacted: redact });
+    console.log(`  Image: ${card.path}${card.redacted ? " (redacted; --no-redact to keep prompt texts)" : ""}\n`);
     return;
   }
 
+  // the path is printed before the browser opens, as before
   const out = opt("--out") ? resolve(opt("--out")) : join(tmpdir(), "ccreceipt", `${s.id.slice(0, 8)}.html`);
-  mkdirSync(join(out, ".."), { recursive: true });
-  writeFileSync(out, renderHtml(s));
   console.log(`  Report: ${out}\n`);
-  if (!flag("--no-open")) {
-    try {
-      const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
-      execFileSync(cmd, process.platform === "win32" ? ["/c", "start", "", out] : [out], { stdio: "ignore" });
-    } catch {
-      /* no browser: the path is printed */
-    }
+  writeReport(s);
+}
+
+// One line on stderr after the output when npm has a newer version (see src/update.js).
+function notifyUpdate() {
+  const argv = process.argv.slice(2);
+  if (["--help", "-h", "--version", "-v"].some((f) => argv.includes(f))) return;
+  if (!updateCheckEnabled({ argv, env: process.env, isTTY: !!process.stdout.isTTY })) return;
+  try {
+    const line = updateNotice({ current: packageVersion(), file: updateCacheFile(), scriptPath: fileURLToPath(import.meta.url) });
+    // a plain write: Bun colors console.error output red
+    if (line) process.stderr.write(`  ${line}\n\n`);
+  } catch {
+    /* never fail a command over the version check */
   }
 }
 
-main();
+// main() returns a promise only for --tui; the notice waits for the dashboard to close.
+Promise.resolve(main()).then(notifyUpdate);

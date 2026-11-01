@@ -4,13 +4,15 @@
 [![test](https://github.com/thehorizoncompany/ccreceipt-cli/actions/workflows/test.yml/badge.svg)](https://github.com/thehorizoncompany/ccreceipt-cli/actions/workflows/test.yml)
 [![license](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 
-**The itemized receipt for your Claude Code sessions**, and your OpenAI Codex CLI ones. What each task cost, which tool result you paid for 587 times, and what the same tokens would cost on another model. Local, zero dependencies, nothing leaves your machine.
+**The itemized receipt for your Claude Code sessions**, and your OpenAI Codex CLI ones. What each task cost, which tool result you paid for 587 times, and what the same tokens would cost on another model. Local, zero dependencies, your sessions never leave your machine.
 
 ```
 npx ccreceipt-cli
 ```
 
 Works the same with `bunx ccreceipt-cli`, `pnpm dlx ccreceipt-cli` or `yarn dlx ccreceipt-cli`. Node 18+ or Bun, nothing to configure.
+
+In a terminal it opens the [dashboard](#terminal-dashboard) of every session. `ccreceipt <id>`, or `ccreceipt --no-tui` for the most recent session, prints the receipt instead:
 
 The npm package is `ccreceipt-cli`. Installed globally (`npm i -g ccreceipt-cli`), the command is simply `ccreceipt`; the examples below use that name.
 
@@ -42,11 +44,27 @@ It then opens a single-file HTML report with the per-task receipt, the most expe
 
 ![The HTML report of a $534 Claude Code session, made with --redact: total, what the money bought by token type, and the cost of each task](docs/receipt.png)
 
+## Terminal dashboard
+
+`ccreceipt` (or `ccreceipt --tui`) opens a full-screen dashboard in the terminal: every session on the left, the selected one's receipt on the right, in the colours of the product (night blue, bone, gold) with its pixel coffee cup while the sessions load. The tabs are OVERVIEW, TASKS, TOOLS and MODELS for the selected session, and ALL for the totals `--all` prints: spend by project and the most expensive tasks ever. `ccreceipt --all` opens on ALL.
+
+```
+↑ ↓  j k        select a session            Tab  ← →   overview, tasks, tools, models, all
+PgUp PgDn       scroll a table              Enter      write and open the HTML report
+S               share a card: redacted (Enter, R) or full (F); on ALL, the card of every session
+R               redact everything on screen A          claude, codex, all
+Q  Esc          quit (in the card dialog: cancel)    Ctrl+C   quit
+```
+
+S asks how to share the card: redacted (Enter or R: no prompt, title, path or project name) or full (F); with `--no-redact`, Enter means full. It writes the same card as `--svg` (on the ALL tab, the all-sessions card of `--all --svg`) next to the HTML reports (with `--tui`, to the `--svg` path if one is given), and opens it with Quick Look on macOS (Preview does not open SVG) or the default app elsewhere. `--no-open` writes without opening.
+
+It takes the same options as `--list` (`--agent`, `--dir`, `--since`, `--until`, `--pricing`, `--redact`) and needs a terminal of at least 80 × 24. Colours are 24-bit where the terminal says it supports them (`COLORTERM=truecolor`, iTerm2, WezTerm, Ghostty, VS Code, Windows Terminal), 256 colours otherwise, none with `NO_COLOR`.
+
 ## Sharing a receipt
 
 `ccreceipt --redact` removes your prompts, Claude's replies, the session title, file paths, project and branch names from the terminal receipt, the HTML report and `--json`. Every number stays the same. The screenshot above was made that way.
 
-`ccreceipt <id> --svg receipt.svg` writes the receipt as a 1200 px wide image, redacted by default. It opens in any browser and renders on GitHub. To post it on X, which does not take SVG, open it in a browser and take a screenshot, or convert it with any image tool.
+`ccreceipt <id> --svg receipt.svg` writes the receipt as a 1200 px wide image, redacted by default, with the cost breakdown drawn as gold bars like the dashboard. `ccreceipt --all --svg all.svg` does the same for the totals across sessions: spend by project as bars, priciest tasks, total. Redacted, projects are numbered by spend (project-1 cost the most), here as in `--list --redact`, `--all --redact` and the dashboard. It opens in any browser and renders on GitHub. To post it on X, which does not take SVG, open it in a browser and take a screenshot, or convert it with any image tool.
 
 ## Why
 
@@ -61,10 +79,16 @@ Three numbers you cannot get elsewhere:
 ## Usage
 
 ```
-ccreceipt                 receipt for the most recent session (opens the HTML report)
+ccreceipt                 in a terminal, the dashboard of every session; piped, or with
+                          --no-tui, the most recent session's receipt and its HTML report
 ccreceipt <id-or-path>    a specific session: id, id prefix, or path to the .jsonl
 ccreceipt --list          the 20 most recently active sessions with their cost
 ccreceipt --all           totals across every session on this machine, and your most expensive tasks ever
+ccreceipt --tui           the dashboard, whatever the other options
+
+In a terminal, ccreceipt, --list and --all open the dashboard (--all on its ALL tab).
+Piped, in CI, or with --no-tui, --json, --svg or --out, they print as above.
+
 
 --agent <name>      claude (default), codex, or all: whose sessions --list, --all
                     and the latest receipt read. A session id that is not a
@@ -86,6 +110,8 @@ ccreceipt --all           totals across every session on this machine, and your 
 --svg <file.svg>    write the receipt as an image to share instead of the HTML
                     report, redacted by default
 --no-redact         with --svg: keep prompts, titles and names in the image
+--no-tui            print instead of opening the dashboard (receipt, --list, --all)
+--no-update-check   do not check npm for a newer version (also NO_UPDATE_NOTIFIER=1)
 -v, --version       print the version
 -h, --help          print the help
 ```
@@ -100,7 +126,17 @@ ccreceipt 3f2a --svg receipt.svg        a shareable image of session 3f2a…
 ccreceipt --json | jq .cost             the cost of the latest session, in USD
 ```
 
-Requires Node 18+ or Bun. Reads `~/.claude/projects/*/<session>.jsonl` and the `<session>/subagents/` transcripts next to it, and with `--agent codex` the rollouts in `~/.codex/sessions`. No network, no telemetry, no account.
+Requires Node 18+ or Bun. Reads `~/.claude/projects/*/<session>.jsonl` and the `<session>/subagents/` transcripts next to it, and with `--agent codex` the rollouts in `~/.codex/sessions`. No telemetry, no account.
+
+## Update check
+
+Once a day at most, ccreceipt asks the npm registry for the latest version of `ccreceipt-cli`. It is the only network request the CLI makes, and it sends nothing but the package name: no session data, no identifier. The request runs in the background and never slows a command down; when a newer version exists, one line at the end of the output says so on the next run:
+
+```
+  ccreceipt 0.3.0 is available (you have 0.2.1): npm i -g ccreceipt-cli
+```
+
+The answer is stored in `~/.cache/ccreceipt/update.json` (or `$XDG_CACHE_HOME/ccreceipt/`). There is no check in CI (`CI` set), when the output is not a terminal, with `--json`, with `--no-update-check`, or with `NO_UPDATE_NOTIFIER=1` in your environment. The CLI never updates itself.
 
 ## How the numbers are computed
 
