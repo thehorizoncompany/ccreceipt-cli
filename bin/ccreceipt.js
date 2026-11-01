@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 import { readdirSync, statSync, writeFileSync, existsSync, readFileSync, mkdirSync } from "node:fs";
-import { join, resolve, basename } from "node:path";
+import { join, resolve, basename, sep } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { execFileSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parseSession } from "../src/parse.js";
 import { renderHtml } from "../src/html.js";
 import { redactSession, projectLabeler, rankedLabeler } from "../src/redact.js";
-import { projectName } from "../src/project.js";
+import { projectName, tildePath } from "../src/project.js";
 import { parseDateBound, inRange, fmtDay } from "../src/dates.js";
 import { usd, pad, trunc, dur } from "../src/format.js";
 import { receiptRows, receiptText, receiptSvg, allReceiptRows } from "../src/receipt.js";
@@ -206,7 +206,11 @@ for a newer version on npm, which sends nothing but the package name.`);
       until,
       view: flag("--all") ? "all" : "overview",
       listFiles: (a) => allSessionFiles(a),
-      rootOf: (a) => (a === "codex" ? codexRootFor(a) : a === "all" ? `${claudeRootFor(a)} + ${codexRootFor(a)}` : claudeRootFor(a)),
+      // ~ for the home folder: a screenshot of the dashboard does not show the account name
+      rootOf: (a) => {
+        const tilde = (p) => tildePath(p, homedir(), sep);
+        return a === "codex" ? tilde(codexRootFor(a)) : a === "all" ? `${tilde(claudeRootFor(a))} + ${tilde(codexRootFor(a))}` : tilde(claudeRootFor(a));
+      },
       parseLight: (f) => parseAny(f, { pricing, light: true }),
       parseFull: (f) => parseAny(f, { pricing }),
       openReport: writeReport,

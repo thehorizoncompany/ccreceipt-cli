@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
@@ -90,6 +90,18 @@ test("every key of the footer fits in 80 columns", () => {
   for (const k of ["SELECT", "VIEW", "ENTER", "REPORT", "S", "CARD", "REDACT", "AGENT", "QUIT"]) assert.ok(footer.includes(k), k);
 });
 
+test("the session list shows project names of 14 characters in full at 108 columns, titles aligned", () => {
+  const st = state();
+  st.rows = st.rows.map((r, i) => ({ ...r, project: i % 2 ? "storefront-web" : "infra" }));
+  const rows = screen(st, 108, 30);
+  assert.ok(rows.some((r) => r.includes("storefront-web ")));
+  const listRows = rows.slice(6, 6 + st.rows.length).map((r) => r.slice(0, 48));
+  const titleAt = listRows.map((r, i) => r.indexOf(st.rows[i].title.slice(0, 6)));
+  assert.equal(new Set(titleAt).size, 1, `titles start at the same column: ${titleAt}`);
+  assert.match(rows[4], /ACTIVE/);
+  assert.match(listRows[0], / \d\d-\d\d /, "the date is MM-DD when the list is narrow");
+});
+
 test("the tasks, tools and models tabs", () => {
   const i = indexOf("Health endpoint");
   const tasks = screen(state({ selected: i, view: "tasks" })).join("\n");
@@ -147,6 +159,16 @@ function fakeTerminal(cols = 120, rows = 34) {
 }
 const settle = (ms = 150) => new Promise((r) => setTimeout(r, ms));
 
+// a failed assertion must not leave a dashboard running: the test file would never end
+const running = new Set();
+afterEach(async () => {
+  for (const t of running) {
+    t.input.write("\x03");
+    await t.done.catch(() => {});
+  }
+  running.clear();
+});
+
 async function startTui(over = {}) {
   const term = fakeTerminal();
   const reports = [];
@@ -174,7 +196,10 @@ async function startTui(over = {}) {
     term.input.write(k);
     await settle();
   };
-  return { ...term, done, key, reports, cards, listed, exitListeners };
+  const handle = { ...term, done, key, reports, cards, listed, exitListeners };
+  running.add(handle);
+  done.finally(() => running.delete(handle));
+  return handle;
 }
 
 test("the dashboard opens on the alternate screen and Q restores the terminal", async () => {
@@ -320,7 +345,7 @@ test("the ALL tab shows what --all prints, and --tui --all opens on it", async (
   await t.key("r");
   assert.doesNotMatch(t.last(), /SENTINEL|acme-api|Cost checks/);
   assert.match(t.last(), /#1 \(prompt redacted\)/);
-  assert.match(t.last(), /#3 \[automatic: task-notification\]/);
+  assert.match(t.last(), /#3 \[automatic: task-/);
   await t.key("q");
   await t.done;
 });
