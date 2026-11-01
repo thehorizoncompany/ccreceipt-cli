@@ -62,7 +62,7 @@ To release `vX.Y.Z`:
 1. On the version branch, set `"version": "X.Y.Z"` in `package.json`.
 2. Merge `release/vX.Y.Z` into `main` with a merge commit (no squash, so the history of the version stays readable). Issues referenced with `Closes #n` close at this point.
 3. Tag the merge commit `vX.Y.Z` and publish a GitHub Release with the notes: new features, fixes, breaking changes, one line each, with the issue numbers.
-4. Publishing the GitHub Release publishes the package to npm (see the publish workflow).
+4. Publishing the GitHub Release publishes the package to npm with provenance (`.github/workflows/publish.yml`). The workflow fails if the tag is not `v` + the `package.json` version. A release marked as pre-release is published under the npm tag `next`. One-time setup: an npm automation token in the repository secret `NPM_TOKEN`.
 5. Delete the version branch once released.
 
 A hotfix starts from `main` on `hotfix/vX.Y.Z`, gets its own issue, is merged into `main`, released, then merged into the open version branch if there is one.
