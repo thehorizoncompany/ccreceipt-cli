@@ -6,6 +6,7 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parseSession } from "../src/parse.js";
 import { renderHtml } from "../src/html.js";
+import { redactSession, projectLabeler } from "../src/redact.js";
 
 const argv = process.argv.slice(2);
 const flag = (n) => argv.includes(n);
@@ -38,6 +39,7 @@ Options:
   --limit <n>         rows for --list / --all (default 20)
   --dir <path>        sessions directory (default ~/.claude/projects)
   --pricing <file>    JSON overrides: {"claude-opus-5-5": {"in":4,"out":20,"cr":0.2}} (USD per MTok)
+  --redact            hide prompts, replies, titles, paths, project and branch names (to share a receipt)
   -v, --version       print the version
   -h, --help          print this help
 
@@ -48,6 +50,8 @@ Everything runs locally. No network, no telemetry.`);
 const root = opt("--dir") || join(homedir(), ".claude", "projects");
 const pricing = opt("--pricing") ? JSON.parse(readFileSync(opt("--pricing"), "utf8")) : null;
 const limit = +(opt("--limit") || 20);
+const redact = flag("--redact");
+const label = projectLabeler();
 
 function allSessionFiles() {
   const out = [];
@@ -99,6 +103,7 @@ if (flag("--list") || flag("--all")) {
     } catch {
       continue;
     }
+    if (redact) redactSession(s, label(s.cwd));
     total += s.cost;
     byProject[projectName(s.cwd)] = (byProject[projectName(s.cwd)] || 0) + s.cost;
     rows.push(s);
@@ -115,7 +120,7 @@ if (flag("--list") || flag("--all")) {
     for (const [p, c] of Object.entries(byProject).sort((a, b) => b[1] - a[1]).slice(0, limit)) console.log(`  ${pad(usd(c), 8)}  ${p}`);
     console.log("\n  Most expensive tasks ever");
     for (const t of tasks.sort((a, b) => b.cost - a.cost).slice(0, limit))
-      console.log(`  ${pad(usd(t.cost), 8)}  ${trunc(projectName(t.session.cwd), 14)}  ${trunc(t.short, 70)}  ${t.session.id.slice(0, 8)}`);
+      console.log(`  ${pad(usd(t.cost), 8)}  ${trunc(projectName(t.session.cwd), 14)}  ${trunc(`#${t.index} ${t.short}`, 70)}  ${t.session.id.slice(0, 8)}`);
     console.log();
   }
   process.exit(0);
@@ -127,6 +132,7 @@ if (!file) {
   process.exit(1);
 }
 const s = parseSession(file, { pricing });
+if (redact) redactSession(s, label(s.cwd));
 
 if (flag("--json")) {
   const { calls, ...rest } = s;
