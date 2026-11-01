@@ -1,0 +1,52 @@
+name: test
+
+on:
+  pull_request:
+    branches: [main, "release/**", "hotfix/**"]
+  push:
+    branches: [main, "release/**"]
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    name: Node ${{ matrix.node }} · ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        node: [18, 20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: npm test
+      - name: Smoke run on the fixtures
+        run: |
+          node bin/ccreceipt.js --version
+          node bin/ccreceipt.js --list --dir test/fixtures/projects
+          node bin/ccreceipt.js --all --dir test/fixtures/projects --redact
+          node bin/ccreceipt.js aaaaaaaa --dir test/fixtures/projects --json
+          node bin/ccreceipt.js aaaaaaaa --dir test/fixtures/projects --no-open --out receipt.html
+
+  bun:
+    name: Bun · ubuntu-latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun test
+      - name: Smoke run on the fixtures
+        run: |
+          bun bin/ccreceipt.js --version
+          bun bin/ccreceipt.js --list --dir test/fixtures/projects
+          bun bin/ccreceipt.js aaaaaaaa --dir test/fixtures/projects --json
