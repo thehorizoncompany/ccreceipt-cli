@@ -9,6 +9,8 @@ import { renderHtml } from "../src/html.js";
 import { redactSession, projectLabeler } from "../src/redact.js";
 import { projectName } from "../src/project.js";
 import { parseDateBound, inRange, fmtDay } from "../src/dates.js";
+import { usd, pad, trunc, dur } from "../src/format.js";
+import { receiptRows, receiptText, receiptSvg } from "../src/receipt.js";
 
 // Everything runs inside main() and returns instead of calling process.exit(0):
 // under Node, stdout to a pipe is asynchronous and process.exit() would cut the output.
@@ -19,7 +21,7 @@ function main() {
     const i = argv.indexOf(n);
     return i >= 0 ? argv[i + 1] : null;
   };
-  const positional = argv.filter((a, i) => !a.startsWith("-") && !["--out", "--pricing", "--limit", "--dir", "--since", "--until"].includes(argv[i - 1]));
+  const positional = argv.filter((a, i) => !a.startsWith("-") && !["--out", "--pricing", "--limit", "--dir", "--since", "--until", "--svg"].includes(argv[i - 1]));
 
   if (flag("--version") || flag("-v")) {
     // readFileSync rather than a JSON import: import attributes are not stable on Node 18.
@@ -47,6 +49,7 @@ Options:
   --redact            hide prompts, replies, titles, paths, project and branch names (to share a receipt)
   --since <date>      with --list / --all: sessions started on or after this day (YYYY-MM-DD, or 7d for the last 7 days)
   --until <date>      with --list / --all: sessions started on or before this day (YYYY-MM-DD, or 30d)
+  --svg <file.svg>    write the receipt as an image to share (redacted unless --no-redact), instead of the HTML report
   -v, --version       print the version
   -h, --help          print this help
 
@@ -98,13 +101,6 @@ Everything runs locally. No network, no telemetry.`);
     return hit;
   }
 
-  const usd = (n) => (n >= 100 ? "$" + n.toFixed(0) : n >= 1 ? "$" + n.toFixed(2) : n > 0 ? "$" + n.toFixed(2) : "$0");
-  const pad = (s, n) => String(s).padStart(n);
-  const trunc = (s, n) => (s.length > n ? s.slice(0, n - 1) + "…" : s.padEnd(n));
-  const dur = (ms) => {
-    const m = Math.round(ms / 60000);
-    return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}` : `${m}m`;
-  };
 
   if (flag("--list") || flag("--all")) {
     const files = allSessionFiles();
@@ -161,32 +157,19 @@ Everything runs locally. No network, no telemetry.`);
   }
 
   // terminal receipt
-  const realTasks = s.tasks.filter((t) => !t.meta || t.cost > 0);
-  const W = 62;
-  const line = (l, r = "") => console.log("  " + trunc(l, W - r.length - 1) + " " + r);
   console.log();
-  console.log("  " + "─".repeat(W));
-  line("RECEIPT · " + s.title.toUpperCase());
-  line(`${(s.start || "").slice(0, 16).replace("T", " ")} · ${dur(s.durationMs)} · ${s.calls.length} calls · ${s.toolCalls.length} tool calls`);
-  console.log("  " + "─".repeat(W));
-  for (const t of realTasks.slice().sort((a, b) => b.cost - a.cost).slice(0, 12)) line(`#${t.index} ${t.short}`, pad(usd(t.cost), 8));
-  if (realTasks.length > 12) line(`… ${realTasks.length - 12} more tasks`);
-  console.log("  " + "─".repeat(W));
-  line("Re-reading context (cache reads)", pad(usd(s.parts.cacheRead), 8));
-  line("Writing context to cache", pad(usd(s.parts.cacheWrite), 8));
-  line("Model output", pad(usd(s.parts.output), 8));
-  line("Uncached input", pad(usd(s.parts.input), 8));
-  console.log("  " + "─".repeat(W));
-  line("TOTAL", pad(usd(s.cost), 8));
-  if (s.officialCost != null) line("(Claude Code's own total)", pad(usd(s.officialCost), 8));
-  console.log("  " + "─".repeat(W));
-  const top = s.topToolCalls[0];
-  if (top) line(`Priciest tool result: ${top.name.replace(/^mcp__/, "")} ${top.summary}`.trim(), pad(usd(top.carry), 8));
-  if (top) line(`  ${top.resultTokens} tokens, re-read ${top.reread}×`);
-  const cheaper = s.whatIf.find((w) => w.label === "Sonnet 5.5");
-  if (cheaper && s.mainModel && !s.mainModel.startsWith("claude-sonnet")) line(`Same tokens on Sonnet 5.5`, pad(usd(cheaper.cost), 8));
-  if (s.unknownModels.length) line(`! unknown price for ${s.unknownModels.join(", ")} (counted $0)`);
+  for (const l of receiptText(receiptRows(s))) console.log(l);
   console.log();
+
+  if (opt("--svg")) {
+    // the image is meant to be posted: redacted unless --no-redact, whatever the terminal shows
+    const img = !redact && !flag("--no-redact") ? redactSession(structuredClone(s), label(projectName(s.cwd))) : s;
+    const svgOut = resolve(opt("--svg"));
+    mkdirSync(join(svgOut, ".."), { recursive: true });
+    writeFileSync(svgOut, receiptSvg(receiptRows(img)));
+    console.log(`  Image: ${svgOut}${img.redacted ? " (redacted; --no-redact to keep prompt texts)" : ""}\n`);
+    return;
+  }
 
   const out = opt("--out") ? resolve(opt("--out")) : join(tmpdir(), "ccreceipt", `${s.id.slice(0, 8)}.html`);
   mkdirSync(join(out, ".."), { recursive: true });
