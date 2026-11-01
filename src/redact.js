@@ -29,6 +29,23 @@ export function redactSession(s, projectLabel) {
   return s;
 }
 
+/**
+ * Neutral names numbered by spend: project-1 is the project that cost the most across `sessions`.
+ * Pass it project names (projectName(cwd)); a name not in `sessions` gets the next free number.
+ */
+export function rankedLabeler(sessions, nameOf) {
+  const spend = new Map();
+  for (const s of sessions) {
+    const name = nameOf(s);
+    spend.set(name, (spend.get(name) || 0) + s.cost);
+  }
+  const ranked = new Map([...spend].sort((a, b) => b[1] - a[1]).map(([name], i) => [name, `project-${i + 1}`]));
+  return (name) => {
+    if (!ranked.has(name)) ranked.set(name, `project-${ranked.size + 1}`);
+    return ranked.get(name);
+  };
+}
+
 /** Stable neutral names for projects: the first project seen is project-1, and so on. Pass it the project name, not the raw cwd. */
 export function projectLabeler() {
   const seen = new Map();

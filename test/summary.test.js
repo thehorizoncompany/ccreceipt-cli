@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { summarize } from "../src/summary.js";
+import { rankedLabeler } from "../src/redact.js";
 import { allReceiptRows, receiptText } from "../src/receipt.js";
 import { parseSession } from "../src/parse.js";
 
@@ -35,6 +36,12 @@ test("redacted, projects are numbered by spend and prompts hidden", () => {
   // a shared labeler keeps the labels of the screen
   const seen = summarize(two, { redact: true, label: (n) => `L:${n}` });
   assert.deepEqual(seen.projects.map(([p]) => p).sort(), ["L:acme-api", "L:bigger"]);
+});
+
+test("rankedLabeler numbers projects by spend; unknown ones come after", () => {
+  const label = rankedLabeler([{ p: "small", cost: 1 }, { p: "big", cost: 10 }, { p: "small", cost: 2 }, { p: "mid", cost: 5 }], (s) => s.p);
+  assert.deepEqual(["big", "mid", "small", "other"].map(label), ["project-1", "project-2", "project-3", "project-4"]);
+  assert.equal(label("big"), "project-1");
 });
 
 test("the all-sessions receipt: counts, projects, priciest tasks, total", () => {

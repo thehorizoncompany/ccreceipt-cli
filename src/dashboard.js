@@ -453,6 +453,30 @@ function splash(c, state, W, H) {
   }
 }
 
+/** The card dialog over the dashboard: redacted or full, the default on Enter. */
+function askDialog(c, state, W, H) {
+  const ask = state.ask;
+  const w = Math.min(64, W - 4);
+  const h = 10;
+  const x = Math.floor((W - w) / 2);
+  const y = Math.max(3, Math.floor((H - h) / 2));
+  box(c, x, y, w, h, "SHARE_CARD");
+  const bg = THEME.panel;
+  c.put(x + 3, y + 2, ask.target === "all" ? "Card of every listed session (the ALL tab)." : "Card of the selected session.", { fg: THEME.bone, bg, bold: true }, w - 6);
+  const choices = [
+    [ask.redacted ? "ENTER R" : "R", "REDACTED", "no prompt, title, path or project name", ask.redacted],
+    [ask.redacted ? "F" : "ENTER F", "FULL", "prompts, titles and names as they are", !ask.redacted],
+    ["ESC", "CANCEL", "", false],
+  ];
+  choices.forEach(([k, name, hint, def], i) => {
+    const yy = y + 4 + i;
+    const kx = c.put(x + 3, yy, ` ${k} `, def ? { fg: THEME.bone, bg: THEME.red, bold: true } : { fg: THEME.bone, bg: THEME.line, bold: true });
+    const nx = c.put(Math.max(kx + 1, x + 13), yy, name, { fg: def ? THEME.gold2 : THEME.text, bg, bold: true });
+    c.put(Math.max(nx + 1, x + 23), yy, hint, { fg: THEME.mute, bg }, x + w - 3 - Math.max(nx + 1, x + 23));
+  });
+  c.put(x + 3, y + 8, "The image opens in a preview once written.", { fg: THEME.mute, bg }, w - 6);
+}
+
 /**
  * state: { version, agent, root, redact, loading: {done,total}|null, rows: [{cost,last,project,title,id,codex}],
  *          total, selected, detail: session|{error}|null, view, scroll, tick, message }
@@ -474,6 +498,7 @@ export function renderDashboard(state, W, H) {
     sessionList(c, state, 0, top, leftW, h);
     detailPanel(c, state, leftW, top, W - leftW, h);
   }
+  if (state.ask) askDialog(c, state, W, H);
   footer(c, state, W, H);
   return c;
 }
