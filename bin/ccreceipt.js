@@ -10,7 +10,8 @@ import { redactSession, projectLabeler } from "../src/redact.js";
 import { projectName } from "../src/project.js";
 import { parseDateBound, inRange, fmtDay } from "../src/dates.js";
 import { usd, pad, trunc, dur } from "../src/format.js";
-import { receiptRows, receiptText, receiptSvg } from "../src/receipt.js";
+import { receiptRows, receiptText, receiptSvg, allReceiptRows } from "../src/receipt.js";
+import { summarize } from "../src/summary.js";
 import { parseCodexSession, codexSessionFiles, codexIdFromFile, isCodexFile } from "../src/codex.js";
 import { updateCheckEnabled, updateCacheFile, updateNotice } from "../src/update.js";
 import { runTui, opensDashboard } from "../src/tui.js";
@@ -158,6 +159,15 @@ for a newer version on npm, which sends nothing but the package name.`);
     return { path: out, redacted: !!img.redacted };
   }
 
+  /** The all-sessions card from summarize(); the caller redacts the summary. */
+  function writeAllCard(sum, { redacted }) {
+    const out = opt("--svg") ? resolve(opt("--svg")) : join(tmpdir(), "ccreceipt", "all-sessions.svg");
+    const span = [since != null && "since " + fmtDay(since), until != null && "until " + fmtDay(until)].filter(Boolean).join(" ");
+    mkdirSync(join(out, ".."), { recursive: true });
+    writeFileSync(out, receiptSvg(allReceiptRows(sum, { range: span })));
+    return { path: out, redacted };
+  }
+
   /** Opens an image without waiting: Quick Look on macOS (Preview cannot open SVG), the default app elsewhere. */
   function previewImage(file) {
     if (flag("--no-open")) return;
@@ -203,15 +213,18 @@ for a newer version on npm, which sends nothing but the package name.`);
         previewImage(card.path);
         return card;
       },
+      cardRedacted: !flag("--no-redact"),
+      writeAllCard: (sum, o) => {
+        const card = writeAllCard(sum, o);
+        previewImage(card.path);
+        return card;
+      },
     });
   }
 
   if (flag("--list") || flag("--all")) {
     const files = allSessionFiles();
     const rows = [];
-    let total = 0;
-    const byProject = {};
-    const tasks = [];
     for (const f of files) {
       let s;
       try {
@@ -221,11 +234,11 @@ for a newer version on npm, which sends nothing but the package name.`);
       }
       if (!inRange(s, since, until)) continue;
       if (redact) redactSession(s, label(projectName(s.cwd)));
-      total += s.cost;
-      byProject[projectName(s.cwd)] = (byProject[projectName(s.cwd)] || 0) + s.cost;
       rows.push(s);
-      for (const t of s.tasks) if (!t.meta) tasks.push({ ...t, session: s });
     }
+    // sessions are already redacted with --redact
+    const sum = summarize(rows);
+    const total = sum.total;
     if (flag("--list")) {
       // most recently active first: the date shown is the last API call, and rows are sorted by it
       const lastActive = (s) => s.end || s.start || "";
@@ -237,11 +250,14 @@ for a newer version on npm, which sends nothing but the package name.`);
     } else {
       console.log(`\n  ${rows.length} session${rows.length === 1 ? "" : "s"}${range} · ${usd(total)} total\n`);
       console.log("  By project");
-      for (const [p, c] of Object.entries(byProject).sort((a, b) => b[1] - a[1]).slice(0, limit)) console.log(`  ${pad(usd(c), 8)}  ${p}`);
+      for (const [p, c] of sum.projects.slice(0, limit)) console.log(`  ${pad(usd(c), 8)}  ${p}`);
       console.log("\n  Most expensive tasks ever");
-      for (const t of tasks.sort((a, b) => b.cost - a.cost).slice(0, limit))
-        console.log(`  ${pad(usd(t.cost), 8)}  ${trunc(projectName(t.session.cwd), 14)}  ${trunc(`#${t.index} ${t.short}`, 70)}  ${t.session.id.slice(0, 8)}`);
+      for (const t of sum.tasks.slice(0, limit)) console.log(`  ${pad(usd(t.cost), 8)}  ${trunc(t.project, 14)}  ${trunc(`#${t.index} ${t.label}`, 70)}  ${t.id.slice(0, 8)}`);
       console.log();
+      if (opt("--svg")) {
+        const card = writeAllCard(redact || flag("--no-redact") ? sum : summarize(rows, { redact: true }), { redacted: redact || !flag("--no-redact") });
+        console.log(`  Image: ${card.path}${card.redacted ? " (redacted; --no-redact to keep names and prompts)" : ""}\n`);
+      }
     }
     return;
   }

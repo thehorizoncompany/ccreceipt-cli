@@ -51,12 +51,12 @@ It then opens a single-file HTML report with the per-task receipt, the most expe
 ```
 ↑ ↓  j k        select a session            Tab  ← →   overview, tasks, tools, models, all
 PgUp PgDn       scroll a table              Enter      write and open the HTML report
-S               write the receipt card (SVG) and preview it
+S               write the receipt card (SVG) and preview it; on ALL, the card of every session
 R               redact everything on screen A          claude, codex, all
 Q  Esc  Ctrl+C  quit
 ```
 
-S writes the same card as `--svg`, redacted unless `--no-redact`, to the `--svg` path or next to the HTML reports, and opens it with Quick Look on macOS (Preview does not open SVG) or the default app elsewhere. `--no-open` writes without opening.
+S writes the same card as `--svg` (on the ALL tab, the all-sessions card of `--all --svg`), redacted unless `--no-redact`, to the `--svg` path or next to the HTML reports, and opens it with Quick Look on macOS (Preview does not open SVG) or the default app elsewhere. `--no-open` writes without opening.
 
 It takes the same options as `--list` (`--agent`, `--dir`, `--since`, `--until`, `--pricing`, `--redact`) and needs a terminal of at least 80 × 24. Colours are 24-bit where the terminal says it supports them (`COLORTERM=truecolor`, iTerm2, WezTerm, Ghostty, VS Code, Windows Terminal), 256 colours otherwise, none with `NO_COLOR`.
 
@@ -64,7 +64,7 @@ It takes the same options as `--list` (`--agent`, `--dir`, `--since`, `--until`,
 
 `ccreceipt --redact` removes your prompts, Claude's replies, the session title, file paths, project and branch names from the terminal receipt, the HTML report and `--json`. Every number stays the same. The screenshot above was made that way.
 
-`ccreceipt <id> --svg receipt.svg` writes the receipt as a 1200 px wide image, redacted by default. It opens in any browser and renders on GitHub. To post it on X, which does not take SVG, open it in a browser and take a screenshot, or convert it with any image tool.
+`ccreceipt <id> --svg receipt.svg` writes the receipt as a 1200 px wide image, redacted by default. `ccreceipt --all --svg all.svg` does the same for the totals across sessions: spend by project, priciest tasks, total; redacted, projects are numbered by spend (project-1 cost the most). It opens in any browser and renders on GitHub. To post it on X, which does not take SVG, open it in a browser and take a screenshot, or convert it with any image tool.
 
 ## Why
 
