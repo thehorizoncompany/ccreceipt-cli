@@ -1,7 +1,9 @@
 name: publish
 
 # Publishing a GitHub Release vX.Y.Z publishes ccreceipt-cli@X.Y.Z to npm, with provenance.
-# One-time setup: add an npm automation token as the repository secret NPM_TOKEN.
+# Authentication is npm Trusted Publishing (OIDC): no token is stored anywhere.
+# One-time setup on npmjs.com: package ccreceipt-cli › Settings › Trusted publishing ›
+# GitHub Actions, organization thehorizoncompany, repository ccreceipt-cli, workflow publish.yml.
 
 on:
   release:
@@ -9,7 +11,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # npm provenance
+  id-token: write # Trusted Publishing and provenance
 
 concurrency:
   group: publish
@@ -29,6 +31,9 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
+      # Trusted Publishing needs npm 11.5.1 or later
+      - run: npm install -g npm@latest
+
       - name: Tag must match package.json
         env:
           TAG: ${{ github.event.release.tag_name }}
@@ -43,13 +48,9 @@ jobs:
 
       - name: Publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          PRERELEASE: ${{ github.event.release.prerelease }}
         run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "::error::The NPM_TOKEN repository secret is not set"
-            exit 1
-          fi
-          if [ "${{ github.event.release.prerelease }}" = "true" ]; then
+          if [ "$PRERELEASE" = "true" ]; then
             npm publish --provenance --access public --tag next
           else
             npm publish --provenance --access public
