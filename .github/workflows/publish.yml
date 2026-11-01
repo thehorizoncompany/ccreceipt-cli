@@ -1,6 +1,6 @@
 name: publish
 
-# Publishing a GitHub Release vX.Y.Z publishes ccreceipt@X.Y.Z to npm, with provenance.
+# Publishing a GitHub Release vX.Y.Z publishes ccreceipt-cli@X.Y.Z to npm, with provenance.
 # One-time setup: add an npm automation token as the repository secret NPM_TOKEN.
 
 on:

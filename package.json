@@ -1,10 +1,11 @@
 {
-  "name": "ccreceipt",
-  "version": "0.1.0",
+  "name": "ccreceipt-cli",
+  "version": "0.1.1",
   "description": "The itemized receipt for your Claude Code sessions: what each task cost, which tool result you paid for 80 times, and what the same session would cost on another model. Local, zero dependencies.",
   "type": "module",
   "bin": {
-    "ccreceipt": "bin/ccreceipt.js"
+    "ccreceipt": "bin/ccreceipt.js",
+    "ccreceipt-cli": "bin/ccreceipt.js"
   },
   "files": [
     "bin",
