@@ -13,6 +13,7 @@ import { usd, pad, trunc, dur } from "../src/format.js";
 import { receiptRows, receiptText, receiptSvg } from "../src/receipt.js";
 import { parseCodexSession, codexSessionFiles, codexIdFromFile, isCodexFile } from "../src/codex.js";
 import { updateCheckEnabled, updateCacheFile, updateNotice } from "../src/update.js";
+import { runTui } from "../src/tui.js";
 
 // readFileSync rather than a JSON import: import attributes are not stable on Node 18.
 function packageVersion() {
@@ -43,6 +44,7 @@ Usage:
   ccreceipt <id-or-path>    receipt for that session (session id, prefix, or .jsonl path)
   ccreceipt --list          the 20 most recently active sessions with their cost
   ccreceipt --all           totals across every session on this machine
+  ccreceipt --tui           interactive dashboard: browse every session and its receipt
 
 Options:
   --out <file.html>   where to write the report (default: a temp file)
@@ -71,8 +73,11 @@ for a newer version on npm, which sends nothing but the package name.`);
     console.error(`Invalid --agent "${agent}": use claude, codex or all`);
     process.exit(1);
   }
-  const claudeRoot = (agent !== "codex" && opt("--dir")) || join(homedir(), ".claude", "projects");
-  const codexRoot = (agent === "codex" && opt("--dir")) || join(homedir(), ".codex", "sessions");
+  // --dir applies to the agent given on the command line
+  const claudeRootFor = (a) => (a !== "codex" && opt("--dir")) || join(homedir(), ".claude", "projects");
+  const codexRootFor = (a) => (a === "codex" && opt("--dir")) || join(homedir(), ".codex", "sessions");
+  const claudeRoot = claudeRootFor(agent);
+  const codexRoot = codexRootFor(agent);
   const root = agent === "codex" ? codexRoot : claudeRoot;
   const pricing = opt("--pricing") ? JSON.parse(readFileSync(opt("--pricing"), "utf8")) : null;
   const limit = +(opt("--limit") || 20);
@@ -89,11 +94,11 @@ for a newer version on npm, which sends nothing but the package name.`);
   const range = since != null || until != null ? ` (${[since != null && "since " + fmtDay(since), until != null && "until " + fmtDay(until)].filter(Boolean).join(" ")})` : "";
   const label = projectLabeler();
 
-  function claudeSessionFiles() {
+  function claudeSessionFiles(dir = claudeRoot) {
     const out = [];
-    if (!existsSync(claudeRoot)) return out;
-    for (const p of readdirSync(claudeRoot)) {
-      const d = join(claudeRoot, p);
+    if (!existsSync(dir)) return out;
+    for (const p of readdirSync(dir)) {
+      const d = join(dir, p);
       let st;
       try {
         st = statSync(d);
@@ -106,9 +111,11 @@ for a newer version on npm, which sends nothing but the package name.`);
     return out;
   }
 
-  function allSessionFiles() {
-    const files = agent === "claude" ? claudeSessionFiles() : agent === "codex" ? codexSessionFiles(codexRoot) : [...claudeSessionFiles(), ...codexSessionFiles(codexRoot)];
-    return files.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+  function allSessionFiles(a = agent) {
+    const claude = () => claudeSessionFiles(claudeRootFor(a));
+    const codex = () => codexSessionFiles(codexRootFor(a));
+    const files = a === "claude" ? claude() : a === "codex" ? codex() : [...claude(), ...codex()];
+    return files.sort((x, y) => statSync(y).mtimeMs - statSync(x).mtimeMs);
   }
 
   const idOf = (f) => (basename(f).startsWith("rollout-") ? codexIdFromFile(f) : basename(f, ".jsonl"));
@@ -126,6 +133,39 @@ for a newer version on npm, which sends nothing but the package name.`);
     return hit;
   }
 
+  function writeReport(s) {
+    const out = opt("--out") ? resolve(opt("--out")) : join(tmpdir(), "ccreceipt", `${s.id.slice(0, 8)}.html`);
+    mkdirSync(join(out, ".."), { recursive: true });
+    writeFileSync(out, renderHtml(s));
+    if (!flag("--no-open")) {
+      try {
+        const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
+        execFileSync(cmd, process.platform === "win32" ? ["/c", "start", "", out] : [out], { stdio: "ignore" });
+      } catch {
+        /* no browser: the path is printed */
+      }
+    }
+    return out;
+  }
+
+  if (flag("--tui")) {
+    if (!process.stdin.isTTY || !process.stdout.isTTY) {
+      console.error("--tui needs an interactive terminal. Use --list or --all to print instead.");
+      process.exit(1);
+    }
+    return runTui({
+      version: packageVersion(),
+      agent,
+      redact,
+      since,
+      until,
+      listFiles: (a) => allSessionFiles(a),
+      rootOf: (a) => (a === "codex" ? codexRootFor(a) : a === "all" ? `${claudeRootFor(a)} + ${codexRootFor(a)}` : claudeRootFor(a)),
+      parseLight: (f) => parseAny(f, { pricing, light: true }),
+      parseFull: (f) => parseAny(f, { pricing }),
+      openReport: writeReport,
+    });
+  }
 
   if (flag("--list") || flag("--all")) {
     const files = allSessionFiles();
@@ -196,18 +236,10 @@ for a newer version on npm, which sends nothing but the package name.`);
     return;
   }
 
+  // the path is printed before the browser opens, as before
   const out = opt("--out") ? resolve(opt("--out")) : join(tmpdir(), "ccreceipt", `${s.id.slice(0, 8)}.html`);
-  mkdirSync(join(out, ".."), { recursive: true });
-  writeFileSync(out, renderHtml(s));
   console.log(`  Report: ${out}\n`);
-  if (!flag("--no-open")) {
-    try {
-      const cmd = process.platform === "darwin" ? "open" : process.platform === "win32" ? "cmd" : "xdg-open";
-      execFileSync(cmd, process.platform === "win32" ? ["/c", "start", "", out] : [out], { stdio: "ignore" });
-    } catch {
-      /* no browser: the path is printed */
-    }
-  }
+  writeReport(s);
 }
 
 // One line on stderr after the output when npm has a newer version (see src/update.js).
@@ -224,5 +256,5 @@ function notifyUpdate() {
   }
 }
 
-main();
-notifyUpdate();
+// main() returns a promise only for --tui; the notice waits for the dashboard to close.
+Promise.resolve(main()).then(notifyUpdate);
