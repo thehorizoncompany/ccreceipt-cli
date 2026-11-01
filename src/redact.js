@@ -1,6 +1,13 @@
 // --redact: remove everything personal from a parsed session so its receipt can be shared.
 // Numbers are untouched; only texts, paths and names are replaced.
 
+/** The label a task keeps once redacted: automatic prompts keep their kind, typed ones say nothing. */
+export function redactedTaskLabel(t) {
+  const auto = t.short.match(/^\[automatic: ([a-z-]+)\]/);
+  if (auto) return `[automatic: ${auto[1]}]`;
+  return t.meta ? t.short : "(prompt redacted)";
+}
+
 /**
  * @param {object} s a session returned by parseSession
  * @param {string} [projectLabel] neutral project name to show instead of the working directory (e.g. "project-1")
@@ -12,10 +19,8 @@ export function redactSession(s, projectLabel) {
   s.branch = null;
   s.prs = [];
   for (const t of s.tasks) {
-    const auto = t.short.match(/^\[automatic: ([a-z-]+)\]/);
     t.prompt = "";
-    if (auto) t.short = `[automatic: ${auto[1]}]`;
-    else if (!t.meta) t.short = "(prompt redacted)";
+    t.short = redactedTaskLabel(t);
   }
   for (const c of s.calls) c.text = "";
   for (const tc of s.toolCalls) tc.summary = tc.ext ? `*${tc.ext}` : "";

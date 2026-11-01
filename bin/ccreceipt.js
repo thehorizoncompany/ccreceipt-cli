@@ -44,7 +44,7 @@ Usage:
   ccreceipt <id-or-path>    receipt for that session (session id, prefix, or .jsonl path)
   ccreceipt --list          the 20 most recently active sessions with their cost
   ccreceipt --all           totals across every session on this machine
-  ccreceipt --tui           interactive dashboard: browse every session and its receipt
+  ccreceipt --tui           interactive dashboard: browse every session and its receipt (--all: open on the totals)
 
 Options:
   --out <file.html>   where to write the report (default: a temp file)
@@ -181,6 +181,7 @@ for a newer version on npm, which sends nothing but the package name.`);
       redact,
       since,
       until,
+      view: flag("--all") ? "all" : "overview",
       listFiles: (a) => allSessionFiles(a),
       rootOf: (a) => (a === "codex" ? codexRootFor(a) : a === "all" ? `${claudeRootFor(a)} + ${codexRootFor(a)}` : claudeRootFor(a)),
       parseLight: (f) => parseAny(f, { pricing, light: true }),

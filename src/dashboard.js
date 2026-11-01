@@ -27,7 +27,7 @@ export const THEME = {
 
 export const MIN_COLS = 80;
 export const MIN_ROWS = 24;
-export const VIEWS = ["overview", "tasks", "tools", "models"];
+export const VIEWS = ["overview", "tasks", "tools", "models", "all"];
 
 // 3 × 5 pixel font, drawn with half blocks: 3 terminal rows per glyph.
 const FONT = {
@@ -197,11 +197,10 @@ function sessionList(c, state, x, y, w, h) {
   box(c, x, y, w, h, "SESSION_LIST");
   const inner = w - 4;
   const costW = 8;
-  const dayW = 10;
+  const dayW = inner < 40 ? 0 : 10; // narrow terminal: no date column
   const projW = Math.max(6, Math.min(14, Math.floor((inner - costW - dayW - 4) / 3)));
-  const titleW = inner - costW - dayW - projW - 3;
   const H = { fg: THEME.gold, bg: THEME.panel };
-  c.put(x + 2, y + 1, "COST".padStart(costW) + " " + "ACTIVE".padEnd(dayW) + " " + "PROJECT".padEnd(projW).slice(0, projW) + " " + "TITLE", H, inner);
+  c.put(x + 2, y + 1, "COST".padStart(costW) + " " + (dayW ? "ACTIVE".padEnd(dayW) + " " : "") + "PROJECT".padEnd(projW).slice(0, projW) + " " + "TITLE", H, inner);
   c.put(x + 1, y + 2, "─".repeat(w - 2), { fg: THEME.line, bg: THEME.panel });
   const visible = h - 5;
   const top = Math.max(0, Math.min(state.selected - Math.floor(visible / 2), state.rows.length - visible));
@@ -214,10 +213,10 @@ function sessionList(c, state, x, y, w, h) {
     c.fill(x + 1, yy, w - 2, 1, st.bg, " ");
     c.put(x + 1, yy, sel ? "▶" : " ", st);
     let cx = c.put(x + 2, yy, usd(r.cost).padStart(costW), sel ? st : { fg: THEME.bone, bg: THEME.panel, bold: true });
-    cx = c.put(cx + 1, yy, (r.last || "").slice(0, dayW).padEnd(dayW), sel ? st : { fg: THEME.mute, bg: THEME.panel });
+    if (dayW) cx = c.put(cx + 1, yy, (r.last || "").slice(0, dayW).padEnd(dayW), sel ? st : { fg: THEME.mute, bg: THEME.panel });
     cx = c.put(cx + 1, yy, fitWidth(r.project, projW), sel ? st : { fg: THEME.text, bg: THEME.panel }, projW);
     if (r.codex) cx = c.put(cx + 1, yy, "[codex]", sel ? st : { fg: THEME.ok, bg: THEME.panel }) - 1;
-    c.put(cx + 1, yy, fitWidth(r.title, x + w - 2 - (cx + 1)), st, titleW);
+    c.put(cx + 1, yy, fitWidth(r.title, x + w - 2 - (cx + 1)), st);
   }
   // count and position in the bottom border
   const info = ` ${state.selected + 1}/${state.rows.length} `;
@@ -225,14 +224,16 @@ function sessionList(c, state, x, y, w, h) {
 }
 
 function tabs(c, state, x, y, w) {
+  const names = VIEWS.map((v) => ` ${v.toUpperCase()} `);
+  // separators only when every tab fits with them
+  const sep = names.reduce((n, t) => n + textWidth(t) + 1, 0) <= w - 4 ? 1 : 0;
   let tx = x + 2;
-  for (const v of VIEWS) {
-    const text = ` ${v.toUpperCase()} `;
-    if (tx + textWidth(text) > x + w - 2) break;
+  VIEWS.forEach((v, i) => {
+    if (tx + textWidth(names[i]) > x + w - 2) return;
     const active = v === state.view;
-    tx = c.put(tx, y, text, active ? { fg: THEME.bg, bg: THEME.gold, bold: true } : { fg: THEME.mute, bg: THEME.panel });
-    tx = c.put(tx, y, "─", { fg: THEME.line, bg: THEME.panel });
-  }
+    tx = c.put(tx, y, names[i], active ? { fg: THEME.bg, bg: THEME.gold, bold: true } : { fg: THEME.mute, bg: THEME.panel });
+    if (sep) tx = c.put(tx, y, "─", { fg: THEME.line, bg: THEME.panel });
+  });
 }
 
 function overview(c, s, state, x, y, w, h) {
@@ -365,6 +366,43 @@ function modelsView(c, s, state, x, y, w, h) {
   });
 }
 
+/** Totals across the listed sessions, as --all prints them. */
+function allView(c, state, x, y, w, h) {
+  const bg = THEME.panel;
+  const t = state.totals || { projects: [], tasks: [] };
+  c.put(x, y, "All sessions", { fg: THEME.bone, bg, bold: true }, w);
+  const meta = [`${state.rows.length} session${state.rows.length === 1 ? "" : "s"}`, `${t.projects.length} project${t.projects.length === 1 ? "" : "s"}`, state.range, `agent: ${state.agent}`].filter(Boolean).join(" · ");
+  c.put(x, y + 1, meta, { fg: THEME.mute, bg }, w);
+  const bw = bigText(c, x, y + 3, usd(state.total), THEME.bone, bg);
+  const top = t.tasks[0];
+  if (top && x + bw + 30 < x + w) {
+    const kx = c.put(x + bw + 4, y + 3, "PRICIEST TASK", { fg: THEME.mute, bg });
+    c.put(kx + 2, y + 3, usd(top.cost), { fg: THEME.gold2, bg, bold: true });
+    c.put(x + bw + 4, y + 4, top.label, { fg: THEME.text, bg }, w - bw - 4);
+    c.put(x + bw + 4, y + 5, top.project, { fg: THEME.mute, bg }, w - bw - 4);
+  }
+  let yy = y + 7;
+  label(c, x, yy++, "BY_PROJECT", w);
+  const projRows = Math.min(t.projects.length, Math.max(1, Math.floor((h - 9) / 3)));
+  const nameW = Math.min(20, Math.max(8, ...t.projects.slice(0, projRows).map(([p]) => textWidth(p))));
+  const barW = Math.max(6, w - nameW - 16);
+  for (const [p, cost] of t.projects.slice(0, projRows)) {
+    c.put(x, yy, p, { fg: THEME.text, bg }, nameW);
+    bar(c, x + nameW + 1, yy, barW, state.total > 0 ? cost / state.total : 0);
+    c.putRight(x + w, yy, usd(cost), { fg: THEME.bone, bg, bold: true });
+    yy++;
+  }
+  if (t.projects.length > projRows) c.put(x, yy++, `… ${t.projects.length - projRows} more`, { fg: THEME.mute, bg });
+  yy++;
+  if (y + h - yy < 5) return;
+  label(c, x, yy++, "PRICIEST_TASKS_EVER", w);
+  const selectedId = state.rows[state.selected]?.id;
+  const rows = t.tasks.map((k) => [usd(k.cost), k.project, k.label, k.id.slice(0, 8)]);
+  table(c, state, x, yy, w, y + h - yy, [["COST", 8, "right"], ["PROJECT", Math.min(14, Math.max(7, Math.floor(w / 6)))], ["TASK", 0], ["SESSION", 8]], rows, (vals, i) =>
+    t.tasks[i].id === selectedId ? { base: { fg: THEME.gold2, bg, bold: true } } : { 0: { fg: THEME.bone, bg, bold: true }, 3: { fg: THEME.mute, bg } },
+  );
+}
+
 function detailPanel(c, state, x, y, w, h) {
   box(c, x, y, w, h, null);
   tabs(c, state, x, y, w);
@@ -372,6 +410,7 @@ function detailPanel(c, state, x, y, w, h) {
   const iy = y + 1;
   const iw = w - 4;
   const ih = h - 2;
+  if (state.view === "all") return allView(c, state, ix, iy, iw, ih);
   const d = state.detail;
   if (!d) {
     c.put(ix, iy, state.rows.length ? "LOADING RECEIPT…" : "", { fg: THEME.mute, bg: THEME.panel });
@@ -431,7 +470,7 @@ export function renderDashboard(state, W, H) {
   else {
     const top = 3;
     const h = H - top - 1;
-    const leftW = Math.max(40, Math.min(70, Math.floor(W * 0.42)));
+    const leftW = W < 100 ? 36 : Math.max(40, Math.min(70, Math.floor(W * 0.42)));
     sessionList(c, state, 0, top, leftW, h);
     detailPanel(c, state, leftW, top, W - leftW, h);
   }
