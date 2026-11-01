@@ -41,14 +41,14 @@ export function shortLabel(text) {
   return text.replace(PASTED_CLOSED_RE, "[pasted text]").replace(PASTED_OPEN_RE, "[pasted text]").replace(/\s+/g, " ").trim().slice(0, 160);
 }
 
-function toolSummary(input) {
+export function toolSummary(input) {
   if (!input || typeof input !== "object") return "";
   const s = input.command ?? input.file_path ?? input.path ?? input.pattern ?? input.query ?? input.url ?? input.description ?? input.prompt ?? "";
   return String(s).replace(/\s+/g, " ").slice(0, 140);
 }
 
 // Extension of the file a tool call touched, kept by --redact instead of the full path.
-function toolExt(input) {
+export function toolExt(input) {
   if (!input || typeof input !== "object") return "";
   const p = input.file_path ?? input.notebook_path ?? input.path;
   return typeof p === "string" ? extname(p) : "";
@@ -57,7 +57,7 @@ function toolExt(input) {
 // Yields one parsed record per line, reading the file 1 MB at a time: memory stays flat on huge transcripts.
 // Synchronous on purpose (works the same under Node and Bun, keeps parseSession synchronous).
 const CHUNK = 1 << 20;
-function* readLines(file) {
+export function* readLines(file) {
   const fd = openSync(file, "r");
   const buf = Buffer.allocUnsafe(CHUNK);
   const decoder = new StringDecoder("utf8"); // never splits a multi-byte character across chunks

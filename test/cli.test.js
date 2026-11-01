@@ -25,7 +25,7 @@ test("--help lists every flag", () => {
   assert.equal(r.status, 0);
   assert.match(r.stdout, /\nUsage:\n  ccreceipt  /); // layout: no extra indentation
   assert.match(r.stdout, /\nOptions:\n  --out /);
-  for (const f of ["--list", "--all", "--out", "--json", "--no-open", "--limit", "--dir", "--pricing", "--redact", "--since", "--until", "--svg", "--version", "--help"]) assert.ok(r.stdout.includes(f), f);
+  for (const f of ["--list", "--all", "--out", "--json", "--no-open", "--limit", "--dir", "--pricing", "--redact", "--since", "--until", "--svg", "--agent", "--version", "--help"]) assert.ok(r.stdout.includes(f), f);
 });
 
 test("--list shows every session with its cost", () => {

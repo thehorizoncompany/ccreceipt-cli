@@ -96,6 +96,16 @@ Requires Node 18+. Reads `~/.claude/projects/*/<session>.jsonl` and the `<sessio
 
 **Accuracy.** Compared with the `cost-state` total Claude Code itself writes at the end of a session, on 41 sessions from one machine: 30 are within 2 %, the rest are 5 to 17 % *under*. The missing part is output Claude Code bills but does not write to disk: the Haiku model behind web search, and interrupted or retried responses. If you are on a Max/Pro plan, the dollars are what the same session would cost on the API, not what you paid.
 
+## Codex sessions
+
+`ccreceipt --agent codex` reads OpenAI Codex CLI sessions from `~/.codex/sessions` and prints the same receipt; `--agent all` lists both tools together. A Codex session id or a `rollout-*.jsonl` path also works without the flag.
+
+- One call per model response (`token_usage_record`, deduped by response id). The sum matches the running token total Codex writes in the same file.
+- `input_tokens` includes cached tokens: uncached input is priced at the input price, cached input at the cached-input price, output (reasoning included) at the output price.
+- A task is a Codex turn, labelled with the first text you typed in it; the context Codex injects (environment, instructions, review history) is skipped.
+- Prices are OpenAI's standard tier (see `src/pricing.js`, checked 2026-11-01). The surcharge for prompts over 272K tokens, Batch and Priority tiers are not applied. Models without a public price, such as `codex-auto-review`, are counted at $0 and named in the receipt.
+- Older rollouts without `token_usage_record` fall back to `token_count` events.
+
 ## What it is not
 
 Not a daily dashboard (use [ccusage](https://github.com/ccusage/ccusage)). Not a shareable video-like replay (use [claude-replay](https://github.com/es617/claude-replay)). Not a proxy (nothing to install in your shell, nothing to intercept). It reads files that are already on your disk and prints a receipt.
