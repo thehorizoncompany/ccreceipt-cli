@@ -68,7 +68,7 @@ To release `vX.Y.Z`:
    gh issue list --milestone vX.Y.Z --state open --json number --jq '.[] | "Closes #\(.number)"'
    ```
 3. Tag the merge commit `vX.Y.Z` and publish a GitHub Release with the notes: new features, fixes, breaking changes, one line each, with the issue numbers.
-4. Publishing the GitHub Release publishes the package to npm with provenance (`.github/workflows/publish.yml`). The workflow fails if the tag is not `v` + the `package.json` version. A release marked as pre-release is published under the npm tag `next`. One-time setup: an npm automation token in the repository secret `NPM_TOKEN`.
+4. Publishing the GitHub Release publishes the package to npm with provenance (`.github/workflows/publish.yml`). The workflow fails if the tag is not `v` + the `package.json` version. A release marked as pre-release is published under the npm tag `next`. Authentication is npm Trusted Publishing: no token is stored. One-time setup on npmjs.com: package `ccreceipt-cli` › Settings › Trusted publishing › GitHub Actions, organization `thehorizoncompany`, repository `ccreceipt-cli`, workflow `publish.yml`.
 5. Delete the version branch once released.
 
 A hotfix starts from `main` on `hotfix/vX.Y.Z`, gets its own issue, is merged into `main`, released, then merged into the open version branch if there is one.
