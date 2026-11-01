@@ -5,6 +5,7 @@ import { costOfUsage, costParts, priceFor, WHATIF } from "./pricing.js";
 const SYS_RE = /<system-reminder>[\s\S]*?<\/system-reminder>/g;
 const CMD_RE = /<(command-name|command-message|command-args|local-command-stdout|local-command-stderr)>[\s\S]*?<\/\1>/g;
 const IMAGE_TOKENS = 1500;
+const DELEGATED_RE = /^(Task|Background) \(from the session that started this one\)/;
 
 export function estimateTokens(content) {
   // Rough: 1 token per 4 characters of text; a fixed 1500 for an image.
@@ -166,7 +167,12 @@ export function parseSession(file, opts = {}) {
         if (!text || d.isMeta || /^\[Request interrupted/.test(text)) continue;
         const auto = text.match(/^<(task-notification|side-sessions-event|ci-monitor-event|artifact-[a-z-]+)>/);
         const t = newTask(text, d.timestamp, false);
-        if (auto) t.short = "[automatic: " + auto[1] + "] " + text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+        if (auto) {
+          // a task notification carries a readable <summary>; other events fall back to their text without tags
+          const summary = auto[1] === "task-notification" && text.match(/<summary>([\s\S]*?)<\/summary>/);
+          const detail = summary ? summary[1] : text.replace(/<[^>]+>/g, " ");
+          t.short = "[automatic: " + auto[1] + "] " + detail.replace(/\s+/g, " ").trim().slice(0, 120);
+        }
         continue;
       }
 
@@ -330,8 +336,10 @@ export function parseSession(file, opts = {}) {
     }
     return { model, label: p.label, cost };
   });
+  // A session started by another Claude Code session opens with the delegation brief; its title says more.
+  const first = s.tasks.find((t) => !t.meta);
+  if (s.title && first && DELEGATED_RE.test(first.prompt)) first.short = s.title;
   if (!s.title) {
-    const first = s.tasks.find((t) => !t.meta);
     s.title = first ? first.short.slice(0, 80) : s.id;
   }
   s.unknownModels = [...s.unknownModels];

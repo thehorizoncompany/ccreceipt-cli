@@ -13,6 +13,7 @@ const BRANCH = "feature/receipts";
 export const SESSION_RULES = "aaaaaaaa-0000-4000-8000-000000000001";
 export const SESSION_COSTS = "bbbbbbbb-0000-4000-8000-000000000002";
 export const SESSION_WORKTREE = "cccccccc-0000-4000-8000-000000000003";
+export const SESSION_DELEGATED = "eeeeeeee-0000-4000-8000-000000000005";
 const WORKTREE_CWD = `${CWD}/.claude/worktrees/brave-turing-1a2b3c`;
 const WORKTREE_PROJECT = join(ROOT, "-home-demo-acme-api--claude-worktrees-brave-turing-1a2b3c");
 
@@ -92,6 +93,13 @@ const worktree = [
   assistant("msg_c2", OPUS, { input_tokens: 0, output_tokens: 0 }, [{ type: "text", text: "Done." }], { cwd: WORKTREE_CWD, timestamp: "2026-10-21T10:00:00.000Z" }),
 ];
 
+// Session 4: started by another Claude Code session; its first prompt is the delegation brief. No cost.
+const delegated = [
+  user("Task (from the session that started this one):\nAdd rate limiting to the login route.\nBackground (from the session that started this one):\nThe API uses Express.", { timestamp: "2026-10-18T08:00:00.000Z" }),
+  assistant("msg_e1", OPUS, { input_tokens: 0, output_tokens: 0 }, [{ type: "text", text: "On it." }], { timestamp: "2026-10-18T08:01:00.000Z" }),
+  { type: "custom-title", customTitle: "Rate limiting on login", sessionId: SESSION_DELEGATED },
+];
+
 rmSync(ROOT, { recursive: true, force: true });
 mkdirSync(join(PROJECT, SESSION_RULES, "subagents"), { recursive: true });
 writeFileSync(join(PROJECT, `${SESSION_RULES}.jsonl`), jsonl(rules));
@@ -101,6 +109,7 @@ writeFileSync(
   JSON.stringify({ toolUseId: "toolu_agent1", description: "Explore tests", agentType: "Explore" }, null, 2) + "\n",
 );
 writeFileSync(join(PROJECT, `${SESSION_COSTS}.jsonl`), jsonl(costs));
+writeFileSync(join(PROJECT, `${SESSION_DELEGATED}.jsonl`), jsonl(delegated));
 mkdirSync(WORKTREE_PROJECT, { recursive: true });
 writeFileSync(join(WORKTREE_PROJECT, `${SESSION_WORKTREE}.jsonl`), jsonl(worktree));
 console.log(`fixtures written to ${ROOT}`);
