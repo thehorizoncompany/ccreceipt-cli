@@ -85,7 +85,11 @@ const costs = [
 // It starts before the other sessions and ends after them: --list must put it first.
 const worktree = [
   user("Fix the flaky test in a worktree", { cwd: WORKTREE_CWD, timestamp: "2026-10-19T08:00:00.000Z" }),
-  assistant("msg_c1", OPUS, { input_tokens: M, output_tokens: 0 }, [{ type: "text", text: "Fixed." }], { cwd: WORKTREE_CWD, timestamp: "2026-10-21T10:00:00.000Z" }),
+  assistant("msg_c1", OPUS, { input_tokens: M, output_tokens: 0 }, [{ type: "text", text: "Fixed." }], { cwd: WORKTREE_CWD, timestamp: "2026-10-19T08:01:00.000Z" }),
+  // pasted text: Claude Code wraps it in <pasted_content>, usually without a closing tag
+  user('Apply this config: <pasted_content id="7">\nport=8080\nhost=demo\n</pasted_content> then restart', { cwd: WORKTREE_CWD, timestamp: "2026-10-20T09:00:00.000Z" }),
+  user('Same for staging <pasted_content id="8">\nport=9090\nhost=staging', { cwd: WORKTREE_CWD, timestamp: "2026-10-21T09:00:00.000Z" }),
+  assistant("msg_c2", OPUS, { input_tokens: 0, output_tokens: 0 }, [{ type: "text", text: "Done." }], { cwd: WORKTREE_CWD, timestamp: "2026-10-21T10:00:00.000Z" }),
 ];
 
 rmSync(ROOT, { recursive: true, force: true });
