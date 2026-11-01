@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { parseSession } from "../src/parse.js";
 import { renderHtml } from "../src/html.js";
 import { redactSession, projectLabeler } from "../src/redact.js";
+import { projectName } from "../src/project.js";
 
 const argv = process.argv.slice(2);
 const flag = (n) => argv.includes(n);
@@ -88,7 +89,6 @@ const dur = (ms) => {
   const m = Math.round(ms / 60000);
   return m >= 60 ? `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}` : `${m}m`;
 };
-const projectName = (cwd) => (cwd ? cwd.split("/").filter(Boolean).slice(-1)[0] : "?");
 
 if (flag("--list") || flag("--all")) {
   const files = allSessionFiles();
@@ -103,7 +103,7 @@ if (flag("--list") || flag("--all")) {
     } catch {
       continue;
     }
-    if (redact) redactSession(s, label(s.cwd));
+    if (redact) redactSession(s, label(projectName(s.cwd)));
     total += s.cost;
     byProject[projectName(s.cwd)] = (byProject[projectName(s.cwd)] || 0) + s.cost;
     rows.push(s);
@@ -132,7 +132,7 @@ if (!file) {
   process.exit(1);
 }
 const s = parseSession(file, { pricing });
-if (redact) redactSession(s, label(s.cwd));
+if (redact) redactSession(s, label(projectName(s.cwd)));
 
 if (flag("--json")) {
   const { calls, ...rest } = s;

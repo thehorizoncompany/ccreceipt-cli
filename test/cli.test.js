@@ -29,7 +29,7 @@ test("--help lists every flag", () => {
 test("--list shows every session with its cost", () => {
   const r = run("--list", "--dir", DIR);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /2 sessions, \$26\.03 in total/);
+  assert.match(r.stdout, /3 sessions, \$30\.03 in total/);
   assert.match(r.stdout, /bbbbbbbb/);
   assert.match(r.stdout, /aaaaaaaa/);
 });
@@ -37,8 +37,9 @@ test("--list shows every session with its cost", () => {
 test("--all shows totals by project and the priciest tasks", () => {
   const r = run("--all", "--dir", DIR);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /2 sessions · \$26\.03 total/);
-  assert.match(r.stdout, /acme-api/);
+  assert.match(r.stdout, /3 sessions · \$30\.03 total/);
+  assert.match(r.stdout, /\$30\.03  acme-api/); // the worktree session is counted under acme-api
+  assert.doesNotMatch(r.stdout, /brave-turing/);
 });
 
 test("--json prints the receipt model", () => {

@@ -12,6 +12,9 @@ const CWD = "/home/demo/acme-api";
 const BRANCH = "feature/receipts";
 export const SESSION_RULES = "aaaaaaaa-0000-4000-8000-000000000001";
 export const SESSION_COSTS = "bbbbbbbb-0000-4000-8000-000000000002";
+export const SESSION_WORKTREE = "cccccccc-0000-4000-8000-000000000003";
+const WORKTREE_CWD = `${CWD}/.claude/worktrees/brave-turing-1a2b3c`;
+const WORKTREE_PROJECT = join(ROOT, "-home-demo-acme-api--claude-worktrees-brave-turing-1a2b3c");
 
 let clock = Date.parse("2026-10-20T09:00:00.000Z");
 const ts = () => new Date((clock += 15000)).toISOString();
@@ -78,6 +81,12 @@ const costs = [
   { type: "cost-state", totalCostUSD: 26 },
 ];
 
+// Session 3: run in a Claude Code worktree; must be counted under acme-api
+const worktree = [
+  user("Fix the flaky test in a worktree", { cwd: WORKTREE_CWD }),
+  assistant("msg_c1", OPUS, { input_tokens: M, output_tokens: 0 }, [{ type: "text", text: "Fixed." }], { cwd: WORKTREE_CWD }),
+];
+
 rmSync(ROOT, { recursive: true, force: true });
 mkdirSync(join(PROJECT, SESSION_RULES, "subagents"), { recursive: true });
 writeFileSync(join(PROJECT, `${SESSION_RULES}.jsonl`), jsonl(rules));
@@ -87,4 +96,6 @@ writeFileSync(
   JSON.stringify({ toolUseId: "toolu_agent1", description: "Explore tests", agentType: "Explore" }, null, 2) + "\n",
 );
 writeFileSync(join(PROJECT, `${SESSION_COSTS}.jsonl`), jsonl(costs));
+mkdirSync(WORKTREE_PROJECT, { recursive: true });
+writeFileSync(join(WORKTREE_PROJECT, `${SESSION_WORKTREE}.jsonl`), jsonl(worktree));
 console.log(`fixtures written to ${ROOT}`);
