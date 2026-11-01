@@ -29,7 +29,7 @@ test("--help lists every flag", () => {
 test("--list shows every session with its cost", () => {
   const r = run("--list", "--dir", DIR);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /3 sessions, \$30\.03 in total/);
+  assert.match(r.stdout, /4 sessions, \$30\.03 in total/);
   assert.match(r.stdout, /bbbbbbbb/);
   assert.match(r.stdout, /aaaaaaaa/);
 });
@@ -38,7 +38,7 @@ test("--list: most recently active first, dated by last activity", () => {
   const r = run("--list", "--dir", DIR);
   assert.match(r.stdout, /last active/);
   const rows = r.stdout.split("\n").filter((l) => /\b[0-9a-f]{8}\s*$/.test(l));
-  assert.deepEqual(rows.map((l) => l.trim().slice(-8)), ["cccccccc", "bbbbbbbb", "aaaaaaaa"]);
+  assert.deepEqual(rows.map((l) => l.trim().slice(-8)), ["cccccccc", "bbbbbbbb", "aaaaaaaa", "eeeeeeee"]);
   // cccccccc started first (Oct 19) but was active last (Oct 21)
   assert.match(rows[0], /2026-10-21/);
   const dates = rows.map((l) => l.match(/\d{4}-\d{2}-\d{2}/)[0]);
@@ -48,7 +48,7 @@ test("--list: most recently active first, dated by last activity", () => {
 test("--all shows totals by project and the priciest tasks", () => {
   const r = run("--all", "--dir", DIR);
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /3 sessions · \$30\.03 total/);
+  assert.match(r.stdout, /4 sessions · \$30\.03 total/);
   assert.match(r.stdout, /\$30\.03  acme-api/); // the worktree session is counted under acme-api
   assert.doesNotMatch(r.stdout, /brave-turing/);
 });

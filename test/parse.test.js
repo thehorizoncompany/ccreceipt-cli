@@ -52,7 +52,7 @@ test("one task per prompt; reminders, meta lines and interruptions are not tasks
 test("automatic prompts are labelled as such", () => {
   const s = parseSession(RULES);
   const auto = s.tasks.filter((t) => !t.meta)[2];
-  assert.ok(auto.short.startsWith("[automatic: task-notification]"), auto.short);
+  assert.equal(auto.short, "[automatic: task-notification] Build finished");
   close(auto.cost, A5);
 });
 
@@ -153,4 +153,22 @@ test("shortLabel leaves prompts without pasted text unchanged, apart from whites
   assert.equal(shortLabel("Fix   the\nbuild"), "Fix the build");
   assert.equal(shortLabel("a <b>tag</b> stays"), "a <b>tag</b> stays");
   assert.equal(shortLabel("x".repeat(300)).length, 160);
+});
+
+test("a delegated session's first task is labelled with the session title", () => {
+  const s = parseSession(fixture("eeeeeeee-0000-4000-8000-000000000005"));
+  const first = s.tasks.find((t) => !t.meta);
+  assert.equal(s.title, "Rate limiting on login");
+  assert.equal(first.short, "Rate limiting on login");
+  assert.match(first.prompt, /^Task \(from the session that started this one\)/);
+});
+
+test("a delegated session without a title keeps the brief as its label", async () => {
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const f = join(mkdtempSync(join(tmpdir(), "ccreceipt-delegated-")), "ffffffff-0000-4000-8000-000000000006.jsonl");
+  writeFileSync(f, JSON.stringify({ type: "user", timestamp: "2026-10-18T08:00:00.000Z", message: { role: "user", content: "Task (from the session that started this one):\nDo X" } }) + "\n");
+  const s = parseSession(f);
+  assert.match(s.tasks[0].short, /^Task \(from the session/);
 });
