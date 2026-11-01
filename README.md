@@ -42,6 +42,19 @@ It then opens a single-file HTML report with the per-task receipt, the most expe
 
 ![The HTML report of a $534 Claude Code session, made with --redact: total, what the money bought by token type, and the cost of each task](docs/receipt.png)
 
+## Terminal dashboard
+
+`ccreceipt --tui` opens a full-screen dashboard in the terminal: every session on the left, the selected one's receipt on the right, in the colours of the product (night blue, bone, gold) with its pixel coffee cup while the sessions load.
+
+```
+↑ ↓  j k        select a session            Tab  ← →   overview, tasks, tools, models
+PgUp PgDn       scroll the tasks or tools   Enter      write and open the HTML report
+R               redact everything on screen A          claude, codex, all
+Q  Esc  Ctrl+C  quit
+```
+
+It takes the same options as `--list` (`--agent`, `--dir`, `--since`, `--until`, `--pricing`, `--redact`) and needs a terminal of at least 80 × 24. Colours are 24-bit where the terminal says it supports them (`COLORTERM=truecolor`, iTerm2, WezTerm, Ghostty, VS Code, Windows Terminal), 256 colours otherwise, none with `NO_COLOR`.
+
 ## Sharing a receipt
 
 `ccreceipt --redact` removes your prompts, Claude's replies, the session title, file paths, project and branch names from the terminal receipt, the HTML report and `--json`. Every number stays the same. The screenshot above was made that way.
@@ -65,6 +78,7 @@ ccreceipt                 receipt for the most recent session (opens the HTML re
 ccreceipt <id-or-path>    a specific session: id, id prefix, or path to the .jsonl
 ccreceipt --list          the 20 most recently active sessions with their cost
 ccreceipt --all           totals across every session on this machine, and your most expensive tasks ever
+ccreceipt --tui           interactive dashboard: browse every session and its receipt
 
 --agent <name>      claude (default), codex, or all: whose sessions --list, --all
                     and the latest receipt read. A session id that is not a
