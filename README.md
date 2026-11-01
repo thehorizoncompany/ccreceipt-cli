@@ -46,7 +46,7 @@ It then opens a single-file HTML report with the per-task receipt, the most expe
 
 ## Terminal dashboard
 
-`ccreceipt` (or `ccreceipt --tui`) opens a full-screen dashboard in the terminal: every session on the left, the selected one's receipt on the right, in the colours of the product (night blue, bone, gold) with its pixel coffee cup while the sessions load. The tabs are OVERVIEW, TASKS, TOOLS and MODELS for the selected session, and ALL for the totals `--all` prints: spend by project and the most expensive tasks ever. `--tui --all` opens on ALL.
+`ccreceipt` (or `ccreceipt --tui`) opens a full-screen dashboard in the terminal: every session on the left, the selected one's receipt on the right, in the colours of the product (night blue, bone, gold) with its pixel coffee cup while the sessions load. The tabs are OVERVIEW, TASKS, TOOLS and MODELS for the selected session, and ALL for the totals `--all` prints: spend by project and the most expensive tasks ever. `ccreceipt --all` opens on ALL.
 
 ```
 ↑ ↓  j k        select a session            Tab  ← →   overview, tasks, tools, models, all
@@ -85,7 +85,10 @@ ccreceipt <id-or-path>    a specific session: id, id prefix, or path to the .jso
 ccreceipt --list          the 20 most recently active sessions with their cost
 ccreceipt --all           totals across every session on this machine, and your most expensive tasks ever
 ccreceipt --tui           the dashboard, whatever the other options
-ccreceipt --tui --all     the dashboard, opened on the totals across sessions
+
+In a terminal, ccreceipt, --list and --all open the dashboard (--all on its ALL tab).
+Piped, in CI, or with --no-tui, --json, --svg or --out, they print as above.
+
 
 --agent <name>      claude (default), codex, or all: whose sessions --list, --all
                     and the latest receipt read. A session id that is not a
@@ -107,7 +110,7 @@ ccreceipt --tui --all     the dashboard, opened on the totals across sessions
 --svg <file.svg>    write the receipt as an image to share instead of the HTML
                     report, redacted by default
 --no-redact         with --svg: keep prompts, titles and names in the image
---no-tui            print the most recent receipt instead of opening the dashboard
+--no-tui            print instead of opening the dashboard (receipt, --list, --all)
 --no-update-check   do not check npm for a newer version (also NO_UPDATE_NOTIFIER=1)
 -v, --version       print the version
 -h, --help          print the help
