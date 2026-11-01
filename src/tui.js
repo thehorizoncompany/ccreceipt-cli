@@ -2,7 +2,7 @@
 // src/dashboard.js. The terminal is restored on every way out: Q, Ctrl+C, an error, or exit.
 import { renderDashboard, VIEWS } from "./dashboard.js";
 import { colorMode } from "./canvas.js";
-import { redactSession, projectLabeler } from "./redact.js";
+import { redactSession, projectLabeler, rankedLabeler } from "./redact.js";
 import { summarize } from "./summary.js";
 import { projectName } from "./project.js";
 import { inRange, fmtDay } from "./dates.js";
@@ -28,7 +28,7 @@ const KEYS = {
   "\t": "tab",
   "\r": "enter",
   "\n": "enter",
-  "\x03": "quit",
+  "\x03": "interrupt",
   "\x1b": "quit",
   q: "quit",
   Q: "quit",
@@ -42,6 +42,8 @@ const KEYS = {
   A: "agent",
   s: "card",
   S: "card",
+  f: "full",
+  F: "full",
 };
 
 /** Splits what the terminal sent into key names; unknown input is dropped. */
@@ -85,8 +87,9 @@ export function opensDashboard(o) {
 /**
  * opts: { version, agent, redact, since, until, listFiles(agent) -> files, rootOf(agent) -> path,
  *         parseLight(file), parseFull(file), openReport(session) -> path,
- *         writeCard(session, { redacted }) -> { path, redacted },
- *         cardRedacted (cards are redacted unless --no-redact), writeAllCard(summary, { redacted }) -> { path, redacted },
+ *         writeCard(session, { redacted }) -> { path, redacted }  (writes the session as given),
+ *         writeAllCard(summary, { redacted }) -> { path, redacted }  (writes the summary as given),
+ *         cardRedacted: the default answer of the card dialog (false with --no-redact),
  *         input = process.stdin, output = process.stdout, env = process.env }
  * Resolves when the user quits.
  */
@@ -94,7 +97,8 @@ export function runTui(opts) {
   const input = opts.input || process.stdin;
   const output = opts.output || process.stdout;
   const mode = colorMode(opts.env || process.env);
-  const label = projectLabeler();
+  // numbered by spend once the sessions are loaded, so project-1 is the costliest everywhere
+  let label = projectLabeler();
 
   const state = {
     version: opts.version,
@@ -113,6 +117,7 @@ export function runTui(opts) {
     range: [opts.since != null && "since " + fmtDay(opts.since), opts.until != null && "until " + fmtDay(opts.until)].filter(Boolean).join(" "),
     tick: 0,
     message: null,
+    ask: null, // the card dialog: { target: "all" | "session", redacted: default answer }
   };
   const details = new Map(); // file -> full session or { error }
   let loadId = 0;
@@ -221,6 +226,7 @@ export function runTui(opts) {
       }
       const lastActive = (s) => s.end || s.start || "";
       state.sessions = found.sort((a, b) => lastActive(b).localeCompare(lastActive(a)));
+      label = rankedLabeler(state.sessions, (s) => projectName(s.cwd));
       state.loading = null;
       rowsFor();
       showDetail();
@@ -240,7 +246,37 @@ export function runTui(opts) {
       state.scroll = Math.max(0, Math.min(Math.max(0, viewRows() - pageSize()), state.scroll + n));
     };
 
+    /** Writes the card the dialog asked for, redacted or full, with the numbers shown on screen. */
+    function writeCardAs(redacted) {
+      const target = state.ask.target;
+      state.ask = null;
+      try {
+        let card;
+        if (target === "all") card = opts.writeAllCard(summarize(state.sessions, { redact: redacted, label }), { redacted });
+        else {
+          const s = state.sessions[state.selected];
+          let full = details.get(s.file);
+          if (!full) details.set(s.file, (full = opts.parseFull(s.file)));
+          if (full.error) throw new Error(full.error);
+          card = opts.writeCard(redacted ? redactSession(structuredClone(full), label(projectName(full.cwd))) : full, { redacted });
+        }
+        say(`Card: ${card.path}${card.redacted ? " (redacted)" : " (full)"}`);
+      } catch (e) {
+        say(`Could not write the card: ${e.message}`);
+      }
+    }
+
     function onKey(key) {
+      if (key === "interrupt") return close();
+      if (state.ask) {
+        // the dialog takes the keys: Enter = its default, R = redacted, F = full, Esc or Q = cancel
+        if (key === "enter") writeCardAs(state.ask.redacted);
+        else if (key === "redact") writeCardAs(true);
+        else if (key === "full") writeCardAs(false);
+        else if (key === "quit") state.ask = null;
+        draw();
+        return;
+      }
       switch (key) {
         case "quit":
           return close();
@@ -285,19 +321,9 @@ export function runTui(opts) {
           load().catch(fail);
           return;
         case "card":
-          if (state.view === "all" && !state.loading) {
-            // the card of what the ALL tab shows: every listed session
-            try {
-              const redacted = state.redact || opts.cardRedacted !== false;
-              // with R on, the card keeps the labels on screen; otherwise project-1 is the costliest project
-              const card = opts.writeAllCard(summarize(state.sessions, { redact: redacted, label: state.redact ? label : undefined }), { redacted });
-              say(`Card: ${card.path}${card.redacted ? " (redacted)" : ""}`);
-            } catch (e) {
-              say(`Could not write the card: ${e.message}`);
-            }
-            break;
-          }
-        // falls through: on the other tabs, the selected session's card
+          // on ALL, the card of every listed session; elsewhere, the selected session's
+          if (!state.loading && state.sessions.length) state.ask = { target: state.view === "all" ? "all" : "session", redacted: state.redact || opts.cardRedacted !== false };
+          break;
         case "enter": {
           const s = state.sessions[state.selected];
           if (!s || state.loading) break;
@@ -306,13 +332,9 @@ export function runTui(opts) {
             if (!full) details.set(s.file, (full = opts.parseFull(s.file)));
             if (full.error) throw new Error(full.error);
             const shown = state.redact ? redactSession(structuredClone(full), label(projectName(full.cwd))) : full;
-            if (key === "enter") say(`Report: ${opts.openReport(shown)}`);
-            else {
-              const card = opts.writeCard(shown, { redacted: state.redact });
-              say(`Card: ${card.path}${card.redacted ? " (redacted)" : ""}`);
-            }
+            say(`Report: ${opts.openReport(shown)}`);
           } catch (e) {
-            say(`Could not write the ${key === "enter" ? "report" : "card"}: ${e.message}`);
+            say(`Could not write the report: ${e.message}`);
           }
           break;
         }

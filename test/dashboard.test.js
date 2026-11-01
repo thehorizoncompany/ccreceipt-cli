@@ -130,7 +130,8 @@ test("key parsing: arrows, vi keys, tab, page keys, quit", () => {
   assert.deepEqual(parseKeys("\x1bOA\x1b[H\x1b[F"), ["up", "home", "end"]);
   assert.deepEqual(parseKeys("q"), ["quit"]);
   assert.deepEqual(parseKeys("\x1b"), ["quit"]);
-  assert.deepEqual(parseKeys("\x03"), ["quit"]);
+  assert.deepEqual(parseKeys("\x03"), ["interrupt"]);
+  assert.deepEqual(parseKeys("sSfF"), ["card", "card", "full", "full"]);
   assert.deepEqual(parseKeys("x\x1b[99~z"), []);
 });
 
@@ -161,7 +162,7 @@ async function startTui(over = {}) {
     parseLight: (f) => parseSession(f, { light: true }),
     parseFull: (f) => parseSession(f),
     openReport: (s) => (reports.push(s), "/tmp/report.html"),
-    writeCard: (s, o) => (cards.push({ s, o }), { path: "/tmp/card.svg", redacted: true }),
+    writeCard: (s, o) => (cards.push({ s, o }), { path: "/tmp/card.svg", redacted: o.redacted }),
     writeAllCard: (sum, o) => (cards.push({ sum, o }), { path: "/tmp/all.svg", redacted: o.redacted }),
     input: term.input,
     output: term.output,
@@ -205,26 +206,45 @@ test("keys move the selection, switch tabs and open the report", async () => {
   await t.done;
 });
 
-test("S writes the receipt card of the selected session and shows its path", async () => {
+test("S asks redacted or full: Enter and R redact, F keeps everything, Esc and Q cancel", async () => {
   const t = await startTui();
   await t.key("j");
   await t.key("s");
-  assert.equal(t.cards.length, 1);
+  assert.match(t.last(), /SHARE_CARD/);
+  assert.match(t.last(), /Card of the selected session/);
+  assert.equal(t.cards.length, 0, "nothing is written before the choice");
+  await t.key("\r");
   assert.equal(t.cards[0].s.id, SESSIONS[1].id);
-  assert.deepEqual(t.cards[0].o, { redacted: false });
+  assert.equal(t.cards[0].s.redacted, true, "Enter: the default, redacted");
+  assert.deepEqual(t.cards[0].o, { redacted: true });
+  assert.doesNotMatch(t.last(), /SHARE_CARD/);
   assert.match(t.last(), /Card: \/tmp\/card\.svg \(redacted\)/);
+  await t.key("s");
+  await t.key("f");
+  assert.equal(t.cards[1].s.redacted, undefined, "F: the full session");
+  assert.equal(t.cards[1].s.title, SESSIONS[1].title);
+  assert.match(t.last(), /\(full\)/);
+  await t.key("s");
   await t.key("r");
-  await t.key("S");
-  assert.equal(t.cards[1].s.redacted, true, "with R on, the card gets the redacted session");
-  assert.deepEqual(t.cards[1].o, { redacted: true });
-  await t.key("q");
+  assert.equal(t.cards[2].s.redacted, true, "R in the dialog: redacted, the screen stays as it was");
+  assert.doesNotMatch(t.last(), /REDACTED /);
+  for (const cancel of ["\x1b", "q"]) {
+    await t.key("s");
+    await t.key(cancel);
+    assert.doesNotMatch(t.last(), /SHARE_CARD/);
+  }
+  assert.equal(t.cards.length, 3, "Esc and Q write nothing and do not quit");
+  await t.key("s");
+  await t.key("\x03");
   await t.done;
+  assert.equal(t.cards.length, 3, "Ctrl+C quits from the dialog");
 });
 
-test("S on the ALL tab writes the card of every session, redacted by default", async () => {
+test("S on the ALL tab: the card of every session, redacted or full", async () => {
   const t = await startTui({ view: "all" });
   await t.key("s");
-  assert.equal(t.cards.length, 1);
+  assert.match(t.last(), /Card of every listed session/);
+  await t.key("\r");
   const { sum, o } = t.cards[0];
   assert.equal(o.redacted, true);
   assert.equal(sum.count, 4);
@@ -232,19 +252,35 @@ test("S on the ALL tab writes the card of every session, redacted by default", a
   assert.deepEqual(sum.projects.map(([p]) => p), ["project-1"]);
   assert.doesNotMatch(JSON.stringify(sum), /SENTINEL|acme-api|Cost checks/);
   assert.match(t.last(), /Card: \/tmp\/all\.svg \(redacted\)/);
+  await t.key("s");
+  await t.key("f");
+  assert.deepEqual(t.cards[1].sum.projects.map(([p]) => p), ["acme-api"], "F keeps the names");
   // on another tab, S is the selected session's card again
   await t.key("\t");
   await t.key("s");
-  assert.ok(t.cards[1].s, "the session card");
+  await t.key("\r");
+  assert.ok(t.cards[2].s, "the session card");
   await t.key("q");
   await t.done;
 
   const raw = await startTui({ view: "all", cardRedacted: false });
   await raw.key("s");
-  assert.equal(raw.cards[0].o.redacted, false, "--no-redact keeps names");
-  assert.deepEqual(raw.cards[0].sum.projects.map(([p]) => p), ["acme-api"]);
+  await raw.key("\r");
+  assert.equal(raw.cards[0].o.redacted, false, "with --no-redact, Enter is full");
   await raw.key("q");
   await raw.done;
+});
+
+test("with R on, the redacted card uses the project numbers on screen, by spend", async () => {
+  const t = await startTui({ view: "all", redact: true });
+  const screenText = t.last();
+  await t.key("s");
+  await t.key("\r");
+  const [name] = t.cards[0].sum.projects[0];
+  assert.equal(name, "project-1");
+  assert.match(screenText, /project-1 .*\$30\.03/);
+  await t.key("q");
+  await t.done;
 });
 
 test("R hides prompts, titles, paths and project names in every tab and in the report", async () => {

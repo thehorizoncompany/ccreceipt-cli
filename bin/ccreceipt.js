@@ -6,7 +6,7 @@ import { execFileSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parseSession } from "../src/parse.js";
 import { renderHtml } from "../src/html.js";
-import { redactSession, projectLabeler } from "../src/redact.js";
+import { redactSession, projectLabeler, rankedLabeler } from "../src/redact.js";
 import { projectName } from "../src/project.js";
 import { parseDateBound, inRange, fmtDay } from "../src/dates.js";
 import { usd, pad, trunc, dur } from "../src/format.js";
@@ -210,10 +210,11 @@ for a newer version on npm, which sends nothing but the package name.`);
       parseLight: (f) => parseAny(f, { pricing, light: true }),
       parseFull: (f) => parseAny(f, { pricing }),
       openReport: writeReport,
+      // the dashboard redacts (or not) as the user chose: write what it gives
       writeCard: (s, o) => {
-        const card = writeCard(s, o);
+        const card = writeCard(s, { redacted: true });
         previewImage(card.path);
-        return card;
+        return { path: card.path, redacted: o.redacted };
       },
       cardRedacted: !flag("--no-redact"),
       writeAllCard: (sum, o) => {
@@ -235,8 +236,12 @@ for a newer version on npm, which sends nothing but the package name.`);
         continue;
       }
       if (!inRange(s, since, until)) continue;
-      if (redact) redactSession(s, label(projectName(s.cwd)));
       rows.push(s);
+    }
+    // numbered by spend: project-1 is the costliest project, as in the dashboard and the cards
+    if (redact) {
+      const byspend = rankedLabeler(rows, (s) => projectName(s.cwd));
+      for (const s of rows) redactSession(s, byspend(projectName(s.cwd)));
     }
     // sessions are already redacted with --redact
     const sum = summarize(rows);

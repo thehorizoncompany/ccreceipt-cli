@@ -1,6 +1,6 @@
 // Totals across sessions: what --all prints, the dashboard's ALL tab shows, and the all-sessions card draws.
 import { projectName } from "./project.js";
-import { projectLabeler, redactedTaskLabel } from "./redact.js";
+import { rankedLabeler, redactedTaskLabel } from "./redact.js";
 
 /**
  * @param {object[]} sessions parsed sessions (light parses are enough)
@@ -10,11 +10,7 @@ import { projectLabeler, redactedTaskLabel } from "./redact.js";
  * @returns {{ count: number, total: number, projects: [string, number][], tasks: {cost: number, project: string, label: string, index: number, id: string}[] }}
  */
 export function summarize(sessions, { redact = false, label } = {}) {
-  if (redact && !label) {
-    const ranked = summarize(sessions).projects.map(([name]) => name);
-    const byRank = new Map(ranked.map((name, i) => [name, `project-${i + 1}`]));
-    label = (name) => byRank.get(name) ?? projectLabeler()(name);
-  }
+  if (redact && !label) label = rankedLabeler(sessions, (s) => projectName(s.cwd));
   const byProject = new Map();
   const tasks = [];
   let total = 0;
