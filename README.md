@@ -46,6 +46,8 @@ It then opens a single-file HTML report with the per-task receipt, the most expe
 
 `ccreceipt --redact` removes your prompts, Claude's replies, the session title, file paths, project and branch names from the terminal receipt, the HTML report and `--json`. Every number stays the same. The screenshot above was made that way.
 
+`ccreceipt <id> --svg receipt.svg` writes the receipt as a 1200 px wide image, redacted by default. It opens in any browser and renders on GitHub. To post it on X, which does not take SVG, open it in a browser and take a screenshot, or convert it with any image tool.
+
 ## Why
 
 `ccusage` tells you what you spent per day. `claude-replay` shows you what happened. Neither tells you **where** the money went inside a session: which prompt, which tool call, which 40 KB file you `cat`-ed in minute 3 and then paid to re-read on every one of the next 500 API calls. The receipt does.
@@ -71,6 +73,8 @@ ccreceipt --all           totals across every session on this machine, and your 
 --dir <path>        sessions directory (default ~/.claude/projects)
 --pricing <file>    JSON price overrides, USD per million tokens:
                     {"claude-opus-5-5": {"in": 4, "out": 20, "cr": 0.2}}
+--svg <file.svg>    write the receipt as an image to share, redacted unless
+                    --no-redact, instead of the HTML report
 --since <date>      with --list / --all: sessions started on or after that day
                     (YYYY-MM-DD, local time) or in the last N days (7d)
 --until <date>      with --list / --all: sessions started on or before that day
