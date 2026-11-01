@@ -3,6 +3,7 @@ import { readdirSync, statSync, writeFileSync, existsSync, readFileSync, mkdirSy
 import { join, resolve, basename } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { parseSession } from "../src/parse.js";
 import { renderHtml } from "../src/html.js";
 
@@ -13,6 +14,13 @@ const opt = (n) => {
   return i >= 0 ? argv[i + 1] : null;
 };
 const positional = argv.filter((a, i) => !a.startsWith("-") && !["--out", "--pricing", "--limit", "--dir"].includes(argv[i - 1]));
+
+if (flag("--version") || flag("-v")) {
+  // readFileSync rather than a JSON import: import attributes are not stable on Node 18.
+  const pkg = JSON.parse(readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"));
+  console.log(pkg.version);
+  process.exit(0);
+}
 
 if (flag("--help") || flag("-h")) {
   console.log(`ccreceipt – the itemized receipt for a Claude Code session
@@ -30,6 +38,8 @@ Options:
   --limit <n>         rows for --list / --all (default 20)
   --dir <path>        sessions directory (default ~/.claude/projects)
   --pricing <file>    JSON overrides: {"claude-opus-5-5": {"in":4,"out":20,"cr":0.2}} (USD per MTok)
+  -v, --version       print the version
+  -h, --help          print this help
 
 Everything runs locally. No network, no telemetry.`);
   process.exit(0);

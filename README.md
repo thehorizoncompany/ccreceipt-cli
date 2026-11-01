@@ -57,6 +57,8 @@ ccreceipt --all           totals across every session on this machine, and your 
 --dir <path>        sessions directory (default ~/.claude/projects)
 --pricing <file>    JSON price overrides, USD per million tokens:
                     {"claude-opus-5-5": {"in": 4, "out": 20, "cr": 0.2}}
+-v, --version       print the version
+-h, --help          print the help
 ```
 
 Requires Node 18+. Reads `~/.claude/projects/*/<session>.jsonl` and the `<session>/subagents/` transcripts next to it. No network, no telemetry, no account.
