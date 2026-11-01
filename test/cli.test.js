@@ -26,7 +26,7 @@ test("--help lists every flag", () => {
   assert.match(r.stdout, /^ccreceipt – the itemized receipt for a Claude Code or Codex session\n/);
   assert.match(r.stdout, /\nUsage:\n  ccreceipt  /); // layout: no extra indentation
   assert.match(r.stdout, /\nOptions:\n  --out /);
-  for (const f of ["--list", "--all", "--out", "--json", "--no-open", "--limit", "--dir", "--pricing", "--redact", "--since", "--until", "--svg", "--agent", "--tui", "--no-update-check", "--version", "--help"]) assert.ok(r.stdout.includes(f), f);
+  for (const f of ["--list", "--all", "--out", "--json", "--no-open", "--limit", "--dir", "--pricing", "--redact", "--since", "--until", "--svg", "--agent", "--tui", "--no-tui", "--no-update-check", "--version", "--help"]) assert.ok(r.stdout.includes(f), f);
 });
 
 test("--list shows every session with its cost", () => {

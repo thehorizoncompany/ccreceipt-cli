@@ -13,7 +13,7 @@ import { usd, pad, trunc, dur } from "../src/format.js";
 import { receiptRows, receiptText, receiptSvg } from "../src/receipt.js";
 import { parseCodexSession, codexSessionFiles, codexIdFromFile, isCodexFile } from "../src/codex.js";
 import { updateCheckEnabled, updateCacheFile, updateNotice } from "../src/update.js";
-import { runTui } from "../src/tui.js";
+import { runTui, opensDashboard } from "../src/tui.js";
 
 // readFileSync rather than a JSON import: import attributes are not stable on Node 18.
 function packageVersion() {
@@ -40,11 +40,11 @@ function main() {
     console.log(`ccreceipt – the itemized receipt for a Claude Code or Codex session
 
 Usage:
-  ccreceipt                 receipt for the most recent session (opens an HTML report)
+  ccreceipt                 in a terminal: the dashboard of every session; otherwise the most recent receipt
   ccreceipt <id-or-path>    receipt for that session (session id, prefix, or .jsonl path)
   ccreceipt --list          the 20 most recently active sessions with their cost
   ccreceipt --all           totals across every session on this machine
-  ccreceipt --tui           interactive dashboard: browse every session and its receipt (--all: open on the totals)
+  ccreceipt --tui           the dashboard, whatever the other options (--all: open on the totals)
 
 Options:
   --out <file.html>   where to write the report (default: a temp file)
@@ -59,6 +59,7 @@ Options:
   --since <date>      with --list / --all: sessions started on or after this day (YYYY-MM-DD, or 7d for the last 7 days)
   --until <date>      with --list / --all: sessions started on or before this day (YYYY-MM-DD, or 30d)
   --svg <file.svg>    write the receipt as an image to share (redacted unless --no-redact), instead of the HTML report
+  --no-tui            print the most recent session's receipt instead of opening the dashboard
   --no-update-check   do not check npm for a newer version (also NO_UPDATE_NOTIFIER=1)
   -v, --version       print the version
   -h, --help          print this help
@@ -170,7 +171,17 @@ for a newer version on npm, which sends nothing but the package name.`);
     }
   }
 
-  if (flag("--tui")) {
+  const dashboard = opensDashboard({
+    argv,
+    positional,
+    get stdoutTTY() {
+      return process.stdout.isTTY;
+    },
+    get stdinTTY() {
+      return process.stdin.isTTY;
+    },
+  });
+  if (dashboard) {
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
       console.error("--tui needs an interactive terminal. Use --list or --all to print instead.");
       process.exit(1);
