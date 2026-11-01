@@ -30,6 +30,14 @@ function promptText(content) {
   return t.replace(SYS_RE, "").replace(CMD_RE, "").trim();
 }
 
+// Short label of a prompt: pasted blocks become "[pasted text]", whitespace is collapsed.
+// Claude Code wraps pasted text in <pasted_content id="…">; the closing tag is often missing.
+const PASTED_CLOSED_RE = /<pasted_content\b[^>]*>[\s\S]*?<\/pasted_content>/g;
+const PASTED_OPEN_RE = /<pasted_content\b[^>]*>[\s\S]*$/;
+export function shortLabel(text) {
+  return text.replace(PASTED_CLOSED_RE, "[pasted text]").replace(PASTED_OPEN_RE, "[pasted text]").replace(/\s+/g, " ").trim().slice(0, 160);
+}
+
 function toolSummary(input) {
   if (!input || typeof input !== "object") return "";
   const s = input.command ?? input.file_path ?? input.path ?? input.pattern ?? input.query ?? input.url ?? input.description ?? input.prompt ?? "";
@@ -91,7 +99,7 @@ export function parseSession(file, opts = {}) {
     task = {
       index: s.tasks.length + 1,
       prompt: text,
-      short: text.replace(/\s+/g, " ").slice(0, 160),
+      short: shortLabel(text),
       start: ts,
       end: ts,
       cost: 0,

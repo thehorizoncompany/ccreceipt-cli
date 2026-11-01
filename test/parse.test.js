@@ -132,3 +132,25 @@ test("light mode keeps the numbers and drops texts", () => {
   assert.ok(light.calls.every((c) => c.text === ""));
   assert.ok(light.toolCalls.every((t) => t.summary === ""));
 });
+
+const WORKTREE = fixture("../-home-demo-acme-api--claude-worktrees-brave-turing-1a2b3c/cccccccc-0000-4000-8000-000000000003");
+
+test("pasted text becomes [pasted text] in task labels, with or without a closing tag", () => {
+  const tasks = parseSession(WORKTREE).tasks.filter((t) => !t.meta);
+  assert.equal(tasks[1].short, "Apply this config: [pasted text] then restart");
+  assert.equal(tasks[2].short, "Same for staging [pasted text]");
+  for (const t of tasks) assert.ok(!t.short.includes("pasted_content"), t.short);
+});
+
+test("the full prompt keeps the pasted text", () => {
+  const tasks = parseSession(WORKTREE).tasks.filter((t) => !t.meta);
+  assert.match(tasks[1].prompt, /port=8080/);
+  assert.match(tasks[2].prompt, /host=staging/);
+});
+
+test("shortLabel leaves prompts without pasted text unchanged, apart from whitespace", async () => {
+  const { shortLabel } = await import("../src/parse.js");
+  assert.equal(shortLabel("Fix   the\nbuild"), "Fix the build");
+  assert.equal(shortLabel("a <b>tag</b> stays"), "a <b>tag</b> stays");
+  assert.equal(shortLabel("x".repeat(300)).length, 160);
+});
