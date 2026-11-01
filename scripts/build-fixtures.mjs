@@ -81,10 +81,11 @@ const costs = [
   { type: "cost-state", totalCostUSD: 26 },
 ];
 
-// Session 3: run in a Claude Code worktree; must be counted under acme-api
+// Session 3: run in a Claude Code worktree; must be counted under acme-api.
+// It starts before the other sessions and ends after them: --list must put it first.
 const worktree = [
-  user("Fix the flaky test in a worktree", { cwd: WORKTREE_CWD }),
-  assistant("msg_c1", OPUS, { input_tokens: M, output_tokens: 0 }, [{ type: "text", text: "Fixed." }], { cwd: WORKTREE_CWD }),
+  user("Fix the flaky test in a worktree", { cwd: WORKTREE_CWD, timestamp: "2026-10-19T08:00:00.000Z" }),
+  assistant("msg_c1", OPUS, { input_tokens: M, output_tokens: 0 }, [{ type: "text", text: "Fixed." }], { cwd: WORKTREE_CWD, timestamp: "2026-10-21T10:00:00.000Z" }),
 ];
 
 rmSync(ROOT, { recursive: true, force: true });
