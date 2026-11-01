@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { summarize } from "../src/summary.js";
 import { rankedLabeler } from "../src/redact.js";
-import { allReceiptRows, receiptText } from "../src/receipt.js";
+import { allReceiptRows, receiptText, receiptSvg } from "../src/receipt.js";
 import { parseSession } from "../src/parse.js";
 
 const BIN = fileURLToPath(new URL("../bin/ccreceipt.js", import.meta.url));
@@ -52,6 +52,14 @@ test("the all-sessions receipt: counts, projects, priciest tasks, total", () => 
   assert.match(text, /#1 Cost checks · acme-api +\$26\.00/);
   assert.match(text, /TOTAL +\$30\.03/);
   assert.match(text, /Average per session +\$7\.51/);
+});
+
+test("the all-sessions card draws one bar per project, its share of the total", () => {
+  const two = [...SESSIONS, { ...SESSIONS[0], cwd: "/home/demo/bigger", cost: 90.09, tasks: [] }];
+  const rows = allReceiptRows(summarize(two, { redact: true }));
+  assert.deepEqual(rows.filter((r) => r.bar != null).map((r) => [r.left.trim(), r.bar.toFixed(2)]), [["project-1", "0.75"], ["project-2", "0.25"]]);
+  const svg = receiptSvg(rows);
+  assert.equal((svg.match(/fill="#132a33"/g) || []).length, 2);
 });
 
 test("--all --svg writes the all-sessions card, redacted unless --no-redact", () => {
